@@ -1,11 +1,15 @@
 /**
  * justVIBE — ML API Service Layer
- * Handles all communication with the Python backend at 127.0.0.1:6261
+ * Handles all communication with the Python backend.
  */
 
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:6261';
+const API_BASE = import.meta.env.VITE_API_BASE || (
+  import.meta.env.PROD
+    ? 'https://justvibe-backend.onrender.com'
+    : 'http://127.0.0.1:6261'
+);
 const TIMEOUT_MS = 15000;
 
 const apiClient = axios.create({
@@ -19,6 +23,22 @@ class ApiError extends Error {
     this.status = status;
     this.data = data;
   }
+}
+
+function getAxiosErrorMessage(err, data, status) {
+  if (!err.response) {
+    return 'Cannot reach backend service. Please verify backend is running and VITE_API_BASE is correct.';
+  }
+
+  if (typeof data === 'string' && data.trim()) {
+    return data;
+  }
+
+  if (status >= 500) {
+    return `Backend error (${status}). Please try again in a moment.`;
+  }
+
+  return data?.message || data?.error || err.message || 'Network error';
 }
 
 async function request(endpoint, options = {}) {
@@ -43,7 +63,7 @@ async function request(endpoint, options = {}) {
 
   try {
     const response = await apiClient.request(config);
-    return response.data;
+    return response?.data ?? {};
   } catch (err) {
     if (axios.isAxiosError(err)) {
       if (err.code === 'ECONNABORTED') {
@@ -52,7 +72,7 @@ async function request(endpoint, options = {}) {
 
       const status = err.response?.status ?? 0;
       const data = err.response?.data;
-      const message = data?.message || data?.error || err.message || 'Network error';
+      const message = getAxiosErrorMessage(err, data, status);
       throw new ApiError(message, status, data);
     }
 

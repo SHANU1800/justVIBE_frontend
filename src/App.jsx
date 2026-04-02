@@ -59,7 +59,7 @@ function AppContent() {
   const {
     currentGenre, isLoadingTimeline, genreTimeline, transitionDuration, setTransitionDuration,
     autoEQEnabled, setAutoEQEnabled,
-    preprocessCurrentTrack,
+    preprocessCurrentTrack, backendError, clearBackendError,
   } = useRealtimeGenre();
 
   const handleListeningModeChange = useCallback(async (mode) => {
@@ -72,7 +72,7 @@ function AppContent() {
     }
 
     if (mode === 'Enhanced') {
-      preprocessCurrentTrack(currentTrack).catch(() => {});
+      preprocessCurrentTrack(currentTrack);
     }
 
     setModeHint('Applying model profile...');
@@ -84,8 +84,9 @@ function AppContent() {
       } else {
         setModeHint(`${mode} active (fallback)`);
       }
-    } catch {
-      setModeHint(`${mode} active (fallback)`);
+    } catch (error) {
+      const reason = error?.message ? ` — ${error.message}` : '';
+      setModeHint(`${mode} active (fallback${reason})`);
     }
   }, [applyListeningMode, currentTrack, preprocessCurrentTrack]);
 
@@ -94,7 +95,7 @@ function AppContent() {
 
     applyListeningMode(listeningMode);
     if (listeningMode === 'Enhanced') {
-      preprocessCurrentTrack(currentTrack).catch(() => {});
+      preprocessCurrentTrack(currentTrack);
     }
 
     getModeRecommendationFromFile(currentTrack.file, listeningMode)
@@ -103,7 +104,10 @@ function AppContent() {
           applyListeningMode(listeningMode, result);
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        const reason = error?.message ? ` — ${error.message}` : '';
+        setModeHint(`${listeningMode} active (fallback${reason})`);
+      });
   }, [currentTrack, listeningMode, applyListeningMode, preprocessCurrentTrack]);
 
   // A/B loop monitoring
@@ -177,7 +181,7 @@ function AppContent() {
     }
 
     if (currentTrack && genreTimeline.length === 0) {
-      preprocessCurrentTrack(currentTrack).catch(() => {});
+      preprocessCurrentTrack(currentTrack);
     }
 
     togglePlay();
@@ -238,6 +242,29 @@ function AppContent() {
             <span className={`h-2.5 w-2.5 rounded-full ${backendStatus === 'ok' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.7)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]'}`} title={backendStatus === 'ok' ? 'Backend Connected' : backendStatus === 'offline' ? 'Backend Offline' : 'Checking backend'} />
           </div>
         </div>
+
+        {(backendStatus === 'offline' || backendError) && (
+          <div className="mx-3 md:mx-4 mt-3 rounded-xl border border-rose-400/45 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 flex items-start justify-between gap-3">
+            <div className="inline-flex items-start gap-2">
+              <Icon name="warning" className="h-4 w-4 mt-0.5" />
+              <div>
+                <div className="font-semibold">ML server appears offline</div>
+                <div className="text-rose-200/90 text-xs md:text-sm">
+                  {backendError || 'Cannot reach backend right now. Check Render service status and VITE_API_BASE configuration.'}
+                </div>
+              </div>
+            </div>
+            {backendError && (
+              <button
+                type="button"
+                className="text-xs rounded-md border border-rose-300/40 px-2 py-1 hover:bg-rose-500/20"
+                onClick={clearBackendError}
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
 
         {activePage === 'player' && (
           <>

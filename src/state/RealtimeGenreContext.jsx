@@ -40,6 +40,7 @@ export function RealtimeGenreProvider({ children }) {
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
   const [autoEQEnabled, setAutoEQEnabled] = useState(true);
   const [transitionDuration, setTransitionDuration] = useState(3);
+  const [backendError, setBackendError] = useState(null);
 
   const lastTrackRef = useRef(null);
   const lastSegmentIdxRef = useRef(-1);
@@ -63,6 +64,7 @@ export function RealtimeGenreProvider({ children }) {
     if (!force && timelineCacheRef.current.has(cacheKey)) {
       const cached = timelineCacheRef.current.get(cacheKey);
       setGenreTimeline(cached);
+      setBackendError(null);
       return { status: 'ok', source: 'memory_cache', timeline: cached };
     }
 
@@ -72,6 +74,7 @@ export function RealtimeGenreProvider({ children }) {
       if (result?.status === 'ok' && Array.isArray(result.timeline) && result.timeline.length > 0) {
         timelineCacheRef.current.set(cacheKey, result.timeline);
         setGenreTimeline(result.timeline);
+        setBackendError(null);
         return result;
       }
 
@@ -79,17 +82,21 @@ export function RealtimeGenreProvider({ children }) {
       if (fallback?.status === 'ok' && Array.isArray(fallback.timeline)) {
         timelineCacheRef.current.set(cacheKey, fallback.timeline);
         setGenreTimeline(fallback.timeline);
+        setBackendError(null);
         return { ...fallback, source: 'timeline_fallback' };
       }
 
       setGenreTimeline([]);
-      return fallback ?? { status: 'error', message: 'Timeline unavailable', timeline: [] };
+      const finalResult = fallback ?? { status: 'error', message: 'Timeline unavailable', timeline: [] };
+      setBackendError(finalResult?.message || 'ML server is unavailable. Please try again shortly.');
+      return finalResult;
     } catch (error) {
       try {
         const fallback = await getTimeline(selectedTrack.file);
         if (fallback?.status === 'ok' && Array.isArray(fallback.timeline)) {
           timelineCacheRef.current.set(cacheKey, fallback.timeline);
           setGenreTimeline(fallback.timeline);
+          setBackendError(null);
           return { ...fallback, source: 'timeline_fallback' };
         }
       } catch {
@@ -97,7 +104,9 @@ export function RealtimeGenreProvider({ children }) {
       }
 
       setGenreTimeline([]);
-      return { status: 'error', message: error?.message ?? 'Preprocess failed', timeline: [] };
+      const message = error?.message ?? 'Preprocess failed';
+      setBackendError(message);
+      return { status: 'error', message, timeline: [] };
     } finally {
       setIsLoadingTimeline(false);
     }
@@ -109,6 +118,7 @@ export function RealtimeGenreProvider({ children }) {
       setGenreTimeline([]);
       setCurrentGenre(null);
       setCurrentSegmentEQ(null);
+      setBackendError(null);
       lastTrackRef.current = null;
       lastSegmentIdxRef.current = -1;
       return;
@@ -180,6 +190,8 @@ export function RealtimeGenreProvider({ children }) {
     setAutoEQEnabled,
     transitionDuration,
     setTransitionDuration,
+    backendError,
+    clearBackendError: () => setBackendError(null),
     getSegmentAtTime,
     getFallbackEQ,
     preprocessCurrentTrack,

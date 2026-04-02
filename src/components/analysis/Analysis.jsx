@@ -45,6 +45,16 @@ export default function Analysis() {
   const spectralCentroid = getFeatureNumber(featureDetails, ['spectral_centroid', 'centroid']);
   const rmsLevel = getFeatureNumber(featureDetails, ['rms']);
   const zcr = getFeatureNumber(featureDetails, ['zero_crossing_rate', 'zcr']);
+  const genreEntries = analysisResult?.genre?.genres && typeof analysisResult.genre.genres === 'object'
+    ? Object.entries(analysisResult.genre.genres)
+    : [];
+  const qualityFactors = analysisResult?.quality?.factors && typeof analysisResult.quality.factors === 'object'
+    ? Object.entries(analysisResult.quality.factors)
+    : [];
+  const eqRecommendation = analysisResult?.eq_recommendation;
+  const eqBandEntries = eqRecommendation?.bands && typeof eqRecommendation.bands === 'object'
+    ? Object.entries(eqRecommendation.bands)
+    : [];
 
   const mixNotes = [];
   if (qualityScore >= 80) {
@@ -166,7 +176,7 @@ export default function Analysis() {
                 </div>
               ) : (
                 <div className="genre-bar-list">
-                  {analysisResult.genre?.genres && Object.entries(analysisResult.genre.genres)
+                  {genreEntries
                     .sort(([, a], [, b]) => b - a)
                     .map(([genre, prob]) => (
                       <div key={genre} className="genre-bar-item">
@@ -218,9 +228,9 @@ export default function Analysis() {
                 </div>
 
                 {/* Quality Factors */}
-                {analysisResult.quality?.factors && (
+                {qualityFactors.length > 0 && (
                   <div style={{ width: '100%' }}>
-                    {Object.entries(analysisResult.quality.factors).map(([key, val]) => (
+                    {qualityFactors.map(([key, val]) => (
                       <div key={key} className="genre-bar-item" style={{ marginBottom: '8px' }}>
                         <span className="genre-bar-label" style={{ minWidth: '130px', textTransform: 'capitalize' }}>
                           {key.replace(/_/g, ' ')}
@@ -347,24 +357,29 @@ export default function Analysis() {
           </div>
 
           {/* EQ Recommendation */}
-          {analysisResult.eq_recommendation && (
+          {eqRecommendation && (
             <div className="card card-glow" style={{ marginTop: '24px' }}>
               <div className="card-header">
                 <h3 className="card-title">
                   <span className="card-title-icon"><Icon name="equalizer" className="h-5 w-5" /></span>
                   Smart EQ Recommendation
                 </h3>
-                <span className="tag tag-green">{analysisResult.eq_recommendation.preset_name}</span>
+                <span className="tag tag-green">{eqRecommendation.preset_name || 'Unavailable'}</span>
               </div>
 
-              {analysisResult.eq_recommendation.status === 'model_not_loaded' ? (
+              {eqRecommendation.status === 'model_not_loaded' ? (
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '16px 0' }}>
                   <span style={{ marginRight: '8px' }}><Icon name="info" className="inline h-4 w-4" /></span>
-                  {analysisResult.eq_recommendation.message}
+                  {eqRecommendation.message}
+                </div>
+              ) : eqBandEntries.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '16px 0' }}>
+                  <span style={{ marginRight: '8px' }}><Icon name="info" className="inline h-4 w-4" /></span>
+                  EQ recommendation data is unavailable for this track.
                 </div>
               ) : (
                 <div className="eq-container" style={{ minHeight: '120px', paddingBlock: '16px' }}>
-                  {Object.entries(analysisResult.eq_recommendation.bands).map(([freq, gain]) => (
+                  {eqBandEntries.map(([freq, gain]) => (
                     <div key={freq} className="eq-band">
                       <div className="eq-value">{gain > 0 ? '+' : ''}{gain} dB</div>
                       <div style={{
