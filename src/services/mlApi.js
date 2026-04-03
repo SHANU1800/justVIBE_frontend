@@ -7,7 +7,7 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE || (
   import.meta.env.PROD
-    ? 'https://justvibe-backend.onrender.com'
+    ? 'https://spots-cfr-quiz-salaries.trycloudflare.com'
     : 'http://127.0.0.1:6261'
 );
 const TIMEOUT_MS = 15000;
