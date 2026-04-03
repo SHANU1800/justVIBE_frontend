@@ -27,7 +27,7 @@ class ApiError extends Error {
 
 function getAxiosErrorMessage(err, data, status) {
   if (!err.response) {
-    return 'Cannot reach backend service. Please verify backend is running and VITE_API_BASE is correct.';
+    return `Cannot reach backend service at ${API_BASE}. Please verify backend is running and VITE_API_BASE is correct.`;
   }
 
   if (typeof data === 'string' && data.trim()) {

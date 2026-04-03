@@ -50,7 +50,7 @@ function AppContent() {
   const [modeHint, setModeHint] = useState('');
   const [topGraphMode, setTopGraphMode] = useState('frequency');
 
-  const { backendStatus, backendIssue, checkBackend } = useAnalysis();
+  const { backendStatus, backendIssue, modelDiagnostics, checkBackend } = useAnalysis();
   const {
     currentTrack, isPlaying, currentTime, duration, volume, isMuted,
     shuffle, repeat, togglePlay, nextTrack, prevTrack, seekTo, dispatch,
@@ -255,6 +255,16 @@ function AppContent() {
                 <div className={`text-xs md:text-sm ${backendStatus === 'degraded' ? 'text-amber-200/90' : 'text-rose-200/90'}`}>
                   {backendError || backendIssue || 'Cannot reach backend right now. Check Render service status and VITE_API_BASE configuration.'}
                 </div>
+                {backendStatus === 'degraded' && modelDiagnostics?.weightsDir && (
+                  <div className="text-[11px] mt-1 text-amber-200/80 break-all">
+                    weights_dir: {modelDiagnostics.weightsDir}
+                  </div>
+                )}
+                {backendStatus === 'degraded' && Array.isArray(modelDiagnostics?.missingFiles) && modelDiagnostics.missingFiles.length > 0 && (
+                  <div className="text-[11px] mt-1 text-amber-200/80 break-all">
+                    missing: {modelDiagnostics.missingFiles.slice(0, 3).join(' • ')}{modelDiagnostics.missingFiles.length > 3 ? ' • ...' : ''}
+                  </div>
+                )}
               </div>
             </div>
             {backendError && (
@@ -319,12 +329,12 @@ function AppContent() {
 
         {/* ── Player Bar ──────────────────────────────────── */}
         {!isVisualsPage && (
-          <div className={`${isPlaying ? 'playing' : ''} h-24 border-t border-white/10 bg-slate-900/75 backdrop-blur-xl flex items-center gap-4 px-4 md:px-6`}>
+          <div className={`${isPlaying ? 'playing' : ''} min-h-24 h-auto border-t border-white/10 bg-slate-900/75 backdrop-blur-xl flex flex-wrap xl:flex-nowrap items-center gap-3 px-3 md:px-5 py-2`}>
 
           {/* Track Info */}
-          <div className="flex items-center gap-3 min-w-0 w-65">
+          <div className="flex items-center gap-3 min-w-0 w-full xl:w-64 2xl:w-72">
             <div className="relative h-11 w-11 shrink-0 rounded-xl bg-linear-to-br from-violet-500 to-cyan-400 grid place-items-center shadow-[0_0_20px_rgba(139,92,246,0.35)]">
-              <Icon name="music" className="relative z-1 h-5 w-5 text-white" />
+              <Icon name="music" className="relative z-10 h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-slate-100">
@@ -339,7 +349,7 @@ function AppContent() {
           </div>
 
           {/* Controls */}
-          <div className="flex-1 min-w-0">
+          <div className="order-3 xl:order-2 basis-full xl:basis-auto flex-1 min-w-0">
             <div className="flex items-center justify-center gap-1.5 mb-2">
               {/* A/B Loop markers */}
               <button
@@ -414,9 +424,9 @@ function AppContent() {
           </div>
 
           {/* Extra Controls: Volume, Speed, Transition */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="order-2 xl:order-3 flex items-center justify-start xl:justify-end gap-2 md:gap-3 shrink-0 w-full xl:w-auto flex-wrap">
             {/* Volume */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 className="h-7 w-7 rounded-full border border-white/20 text-slate-200 bg-slate-800/70 hover:border-white/35 text-xs"
                 onClick={() => dispatch({ type: 'TOGGLE_MUTE' })}
@@ -427,15 +437,15 @@ function AppContent() {
                 type="range" min="0" max="1.5" step="0.01"
                 value={isMuted ? 0 : volume}
                 onChange={e => dispatch({ type: 'SET_VOLUME', payload: parseFloat(e.target.value) })}
-                className="w-20 accent-violet-400"
+                className="w-16 md:w-20 accent-violet-400"
               />
-              <span className="text-[11px] text-slate-400 tabular-nums w-9">
+              <span className="hidden sm:inline text-[11px] text-slate-400 tabular-nums w-9">
                 {Math.round((isMuted ? 0 : volume) * 100)}%
               </span>
             </div>
 
             {/* Speed */}
-            <div className="flex items-center gap-1.5">
+            <div className="hidden lg:flex items-center gap-1.5">
               <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Speed</span>
               <select
                 className="h-7 rounded-md border border-white/20 bg-slate-800/70 px-2 text-xs text-slate-200"
@@ -447,14 +457,21 @@ function AppContent() {
             </div>
 
             {/* Modes */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Mode</span>
-              <div className="flex items-center gap-1">
+              <select
+                className="sm:hidden h-7 max-w-34 rounded-md border border-white/20 bg-slate-800/70 px-2 text-[11px] text-slate-200"
+                value={listeningMode}
+                onChange={e => handleListeningModeChange(e.target.value)}
+              >
+                {PLAYER_MODES.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+              </select>
+              <div className="hidden sm:flex items-center gap-1 overflow-x-auto max-w-[58vw] xl:max-w-none pb-1">
                 {PLAYER_MODES.map(mode => (
                   <button
                     key={mode.value}
                     type="button"
-                    className={`h-7 px-2 rounded-md border text-[10px] font-semibold transition-colors ${listeningMode === mode.value ? 'border-violet-300/70 text-violet-100 bg-violet-500/30' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
+                    className={`h-7 px-2 rounded-md border text-[10px] font-semibold whitespace-nowrap transition-colors ${listeningMode === mode.value ? 'border-violet-300/70 text-violet-100 bg-violet-500/30' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
                     onClick={() => handleListeningModeChange(mode.value)}
                   >
                     {mode.label}
@@ -464,7 +481,7 @@ function AppContent() {
             </div>
 
             {/* Transition duration */}
-            <div className="flex items-center gap-1.5">
+            <div className="hidden md:flex items-center gap-1.5">
               <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Transition</span>
               <input
                 type="range" min="0" max="10" step="0.5"
@@ -478,10 +495,19 @@ function AppContent() {
             </div>
 
             {/* Auto EQ (always visible on player bar) */}
-            <div className="flex items-center gap-2 pl-1">
+            <div className="flex items-center gap-2 xl:pl-1">
               <button
                 type="button"
-                className={`h-10 px-4 rounded-xl border text-xs font-extrabold tracking-[0.08em] transition-all shadow-[0_0_0_rgba(0,0,0,0)] ${autoEQEnabled ? 'border-emerald-300/80 text-emerald-50 bg-linear-to-r from-emerald-500/45 to-cyan-500/35 shadow-[0_0_22px_rgba(16,185,129,0.42)] hover:brightness-110' : 'border-white/25 text-slate-200 bg-slate-800/80 hover:border-white/45 hover:bg-slate-700/80'}`}
+                className={`sm:hidden h-9 w-9 rounded-xl border grid place-items-center transition-all ${autoEQEnabled ? 'border-emerald-300/80 text-emerald-50 bg-linear-to-r from-emerald-500/45 to-cyan-500/35 shadow-[0_0_18px_rgba(16,185,129,0.35)]' : 'border-white/25 text-slate-200 bg-slate-800/80 hover:border-white/45 hover:bg-slate-700/80'}`}
+                onClick={() => setAutoEQEnabled(!autoEQEnabled)}
+                title={autoEQEnabled ? 'Auto EQ Live' : 'Auto EQ Off'}
+                aria-label={autoEQEnabled ? 'Disable Auto EQ' : 'Enable Auto EQ'}
+              >
+                <Icon name="brain" className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className={`hidden sm:inline-flex h-9 md:h-10 px-3 md:px-4 rounded-xl border text-[11px] md:text-xs font-extrabold tracking-[0.08em] transition-all shadow-[0_0_0_rgba(0,0,0,0)] whitespace-nowrap ${autoEQEnabled ? 'border-emerald-300/80 text-emerald-50 bg-linear-to-r from-emerald-500/45 to-cyan-500/35 shadow-[0_0_22px_rgba(16,185,129,0.42)] hover:brightness-110' : 'border-white/25 text-slate-200 bg-slate-800/80 hover:border-white/45 hover:bg-slate-700/80'}`}
                 onClick={() => setAutoEQEnabled(!autoEQEnabled)}
                 title={autoEQEnabled ? 'Auto EQ is enabled and continuously optimizing EQ, bass, stereo, reverb and normalization' : 'Auto EQ is disabled'}
               >

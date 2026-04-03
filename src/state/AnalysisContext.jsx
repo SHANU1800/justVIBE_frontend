@@ -10,8 +10,13 @@ export function AnalysisProvider({ children }) {
   const [backendStatus, setBackendStatus] = useState('unknown'); // ok, degraded, offline, unknown
   const [backendIssue, setBackendIssue] = useState(null);
   const [modelStatus, setModelStatus] = useState(null);
+  const [modelDiagnostics, setModelDiagnostics] = useState(null);
 
-  const hasMissingCoreModels = (models = {}) => {
+  const hasMissingCoreModels = (models = {}, statusPayload = {}) => {
+    if (typeof statusPayload?.core_models?.all_missing === 'boolean') {
+      return statusPayload.core_models.all_missing;
+    }
+
     const coreKeys = ['justvibe_net', 'genre_classifier', 'eq_predictor'];
     return coreKeys.every((key) => !models?.[key]?.exists);
   };
@@ -22,6 +27,12 @@ export function AnalysisProvider({ children }) {
       const models = await api.getModelStatus();
       const modelMap = models.models || null;
       setModelStatus(modelMap);
+      setModelDiagnostics({
+        coreModels: models.core_models || null,
+        missingFiles: Array.isArray(models.missing_files) ? models.missing_files : [],
+        weightsDir: models.weights_dir || null,
+        deploymentHint: models.deployment_hint || null,
+      });
 
       if (health.status !== 'ok') {
         setBackendStatus('offline');
@@ -29,9 +40,13 @@ export function AnalysisProvider({ children }) {
         return false;
       }
 
-      if (hasMissingCoreModels(modelMap)) {
+      if (hasMissingCoreModels(modelMap, models)) {
+        const missingCore = models?.core_models?.missing;
+        const missingHint = Array.isArray(missingCore) && missingCore.length
+          ? ` Missing core models: ${missingCore.join(', ')}.`
+          : '';
         setBackendStatus('degraded');
-        setBackendIssue('Backend is reachable, but ML model weight files are missing on the server.');
+        setBackendIssue(`Backend is reachable, but ML model weight files are missing on the server.${missingHint}`);
         return true;
       }
 
@@ -72,6 +87,7 @@ export function AnalysisProvider({ children }) {
     backendStatus,
     backendIssue,
     modelStatus,
+    modelDiagnostics,
     checkBackend,
     runAnalysis,
     clearAnalysis,
