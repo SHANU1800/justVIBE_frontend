@@ -50,7 +50,7 @@ function AppContent() {
   const [modeHint, setModeHint] = useState('');
   const [topGraphMode, setTopGraphMode] = useState('frequency');
 
-  const { backendStatus, checkBackend } = useAnalysis();
+  const { backendStatus, backendIssue, checkBackend } = useAnalysis();
   const {
     currentTrack, isPlaying, currentTime, duration, volume, isMuted,
     shuffle, repeat, togglePlay, nextTrack, prevTrack, seekTo, dispatch,
@@ -239,18 +239,21 @@ function AppContent() {
               <Icon name={activeNavItem?.icon || 'music'} className="h-3.5 w-3.5" />
               {activeNavItem?.label}
             </span>
-            <span className={`h-2.5 w-2.5 rounded-full ${backendStatus === 'ok' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.7)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]'}`} title={backendStatus === 'ok' ? 'Backend Connected' : backendStatus === 'offline' ? 'Backend Offline' : 'Checking backend'} />
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${backendStatus === 'ok' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.7)]' : backendStatus === 'degraded' ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]'}`}
+              title={backendStatus === 'ok' ? 'Backend Connected' : backendStatus === 'degraded' ? 'Backend Connected, ML Models Missing' : backendStatus === 'offline' ? 'Backend Offline' : 'Checking backend'}
+            />
           </div>
         </div>
 
-        {(backendStatus === 'offline' || backendError) && (
-          <div className="mx-3 md:mx-4 mt-3 rounded-xl border border-rose-400/45 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 flex items-start justify-between gap-3">
+        {(backendStatus === 'offline' || backendStatus === 'degraded' || backendError) && (
+          <div className={`mx-3 md:mx-4 mt-3 rounded-xl px-3 py-2 text-sm flex items-start justify-between gap-3 ${backendStatus === 'degraded' ? 'border border-amber-400/45 bg-amber-500/10 text-amber-100' : 'border border-rose-400/45 bg-rose-500/10 text-rose-100'}`}>
             <div className="inline-flex items-start gap-2">
               <Icon name="warning" className="h-4 w-4 mt-0.5" />
               <div>
-                <div className="font-semibold">ML server appears offline</div>
-                <div className="text-rose-200/90 text-xs md:text-sm">
-                  {backendError || 'Cannot reach backend right now. Check Render service status and VITE_API_BASE configuration.'}
+                <div className="font-semibold">{backendStatus === 'degraded' ? 'Backend connected, but ML models are unavailable' : 'ML server appears offline'}</div>
+                <div className={`text-xs md:text-sm ${backendStatus === 'degraded' ? 'text-amber-200/90' : 'text-rose-200/90'}`}>
+                  {backendError || backendIssue || 'Cannot reach backend right now. Check Render service status and VITE_API_BASE configuration.'}
                 </div>
               </div>
             </div>

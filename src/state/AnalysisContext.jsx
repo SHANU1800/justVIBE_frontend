@@ -7,18 +7,40 @@ export function AnalysisProvider({ children }) {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [backendStatus, setBackendStatus] = useState('unknown'); // ok, offline, unknown
+  const [backendStatus, setBackendStatus] = useState('unknown'); // ok, degraded, offline, unknown
+  const [backendIssue, setBackendIssue] = useState(null);
   const [modelStatus, setModelStatus] = useState(null);
+
+  const hasMissingCoreModels = (models = {}) => {
+    const coreKeys = ['justvibe_net', 'genre_classifier', 'eq_predictor'];
+    return coreKeys.every((key) => !models?.[key]?.exists);
+  };
 
   const checkBackend = useCallback(async () => {
     try {
       const health = await api.checkHealth();
-      setBackendStatus(health.status === 'ok' ? 'ok' : 'offline');
       const models = await api.getModelStatus();
-      setModelStatus(models.models || null);
-      return health.status === 'ok';
+      const modelMap = models.models || null;
+      setModelStatus(modelMap);
+
+      if (health.status !== 'ok') {
+        setBackendStatus('offline');
+        setBackendIssue('Backend health check failed.');
+        return false;
+      }
+
+      if (hasMissingCoreModels(modelMap)) {
+        setBackendStatus('degraded');
+        setBackendIssue('Backend is reachable, but ML model weight files are missing on the server.');
+        return true;
+      }
+
+      setBackendStatus('ok');
+      setBackendIssue(null);
+      return true;
     } catch {
       setBackendStatus('offline');
+      setBackendIssue('Cannot reach backend service.');
       return false;
     }
   }, []);
@@ -48,6 +70,7 @@ export function AnalysisProvider({ children }) {
     isAnalyzing,
     error,
     backendStatus,
+    backendIssue,
     modelStatus,
     checkBackend,
     runAnalysis,
