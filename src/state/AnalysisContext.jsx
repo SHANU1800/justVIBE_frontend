@@ -12,6 +12,7 @@ export function AnalysisProvider({ children }) {
   const [modelStatus, setModelStatus] = useState(null);
   const [modelDiagnostics, setModelDiagnostics] = useState(null);
   const backendCheckInFlightRef = useRef(false);
+  const backendFailureCountRef = useRef(0);
 
   const hasMissingCoreModels = (models = {}, statusPayload = {}) => {
     if (typeof statusPayload?.core_models?.all_missing === 'boolean') {
@@ -30,15 +31,6 @@ export function AnalysisProvider({ children }) {
     backendCheckInFlightRef.current = true;
     try {
       const health = await api.checkHealth({ timeout: 8000 });
-      const models = await api.getModelStatus();
-      const modelMap = models.models || null;
-      setModelStatus(modelMap);
-      setModelDiagnostics({
-        coreModels: models.core_models || null,
-        missingFiles: Array.isArray(models.missing_files) ? models.missing_files : [],
-        weightsDir: models.weights_dir || null,
-        deploymentHint: models.deployment_hint || null,
-      });
 
       if (health.status !== 'ok') {
         setBackendStatus('offline');
@@ -46,8 +38,27 @@ export function AnalysisProvider({ children }) {
         return false;
       }
 
-      if (hasMissingCoreModels(modelMap, models)) {
-        const missingCore = models?.core_models?.missing;
+      backendFailureCountRef.current = 0;
+
+      // Model status should not decide connectivity; keep it best-effort.
+      let models = null;
+      try {
+        models = await api.getModelStatus({ timeout: 12000 });
+      } catch {
+        models = null;
+      }
+
+      const modelMap = models?.models || null;
+      setModelStatus(modelMap);
+      setModelDiagnostics({
+        coreModels: models?.core_models || null,
+        missingFiles: Array.isArray(models?.missing_files) ? models.missing_files : [],
+        weightsDir: models?.weights_dir || null,
+        deploymentHint: models?.deployment_hint || null,
+      });
+
+      if (models && hasMissingCoreModels(modelMap, models)) {
+        const missingCore = models.core_models?.missing;
         const missingHint = Array.isArray(missingCore) && missingCore.length
           ? ` Missing core models: ${missingCore.join(', ')}.`
           : '';
@@ -57,16 +68,24 @@ export function AnalysisProvider({ children }) {
       }
 
       setBackendStatus('ok');
-      setBackendIssue(null);
+      setBackendIssue(models ? null : 'Backend reachable. Model diagnostics temporarily unavailable.');
       return true;
-    } catch {
-      setBackendStatus('offline');
-      setBackendIssue('Cannot reach backend service.');
+    } catch (err) {
+      backendFailureCountRef.current += 1;
+      const message = err?.message || 'Cannot reach backend service.';
+
+      // Avoid flipping to offline on one transient timeout.
+      if (backendFailureCountRef.current >= 2) {
+        setBackendStatus('offline');
+        setBackendIssue(message);
+      } else if (backendStatus === 'ok' || backendStatus === 'degraded') {
+        setBackendIssue(`Temporary network issue: ${message}`);
+      }
       return false;
     } finally {
       backendCheckInFlightRef.current = false;
     }
-  }, []);
+  }, [backendStatus]);
 
   const runAnalysis = useCallback(async (file) => {
     setIsAnalyzing(true);
