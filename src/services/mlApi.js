@@ -8,7 +8,7 @@ import axios from 'axios';
 const API_BASE = import.meta.env.PROD
   ? 'https://ritanshucse.online'
   : (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:6261');
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 30000;
 
 const apiClient = axios.create({
   baseURL: API_BASE,
@@ -145,6 +145,7 @@ export async function fullAnalysis(filePath) {
   return request('/analysis/full', {
     method: 'POST',
     body: JSON.stringify({ file_path: filePath }),
+    timeout: 180000,
   });
 }
 
@@ -154,7 +155,7 @@ export async function fullAnalysisFromFile(file) {
   return request('/analysis/full', {
     method: 'POST',
     body: formData,
-    timeout: 60000,
+    timeout: 180000,
   });
 }
 
