@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "sync:tunnel": "powershell -ExecutionPolicy Bypass -File ./scripts/sync_tunnel_url.ps1",
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
