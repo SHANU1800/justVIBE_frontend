@@ -49,6 +49,7 @@ function AppContent() {
   const [listeningMode, setListeningMode] = useState('Normal');
   const [modeHint, setModeHint] = useState('');
   const [topGraphMode, setTopGraphMode] = useState('frequency');
+  const lastBackendCheckRef = useRef(0);
 
   const { backendStatus, backendIssue, modelDiagnostics, checkBackend } = useAnalysis();
   const {
@@ -131,20 +132,23 @@ function AppContent() {
     setPlaybackRate?.(SPEED_VALUES[speed] ?? 1);
   }, [speed, setPlaybackRate]);
 
-  useEffect(() => {
+  const runBackendCheck = useCallback((force = false) => {
+    const now = Date.now();
+    if (!force && now - lastBackendCheckRef.current < 30000) return;
+    lastBackendCheckRef.current = now;
     checkBackend();
-    const interval = setInterval(checkBackend, 30000);
-    return () => clearInterval(interval);
   }, [checkBackend]);
 
   useEffect(() => {
-    checkBackend();
-  }, [activePage, checkBackend]);
+    runBackendCheck(true);
+    const interval = setInterval(() => runBackendCheck(), 120000);
+    return () => clearInterval(interval);
+  }, [runBackendCheck]);
 
   useEffect(() => {
-    const onFocus = () => checkBackend();
+    const onFocus = () => runBackendCheck();
     const onVisibility = () => {
-      if (!document.hidden) checkBackend();
+      if (!document.hidden) runBackendCheck();
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
@@ -152,7 +156,7 @@ function AppContent() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [checkBackend]);
+  }, [runBackendCheck]);
 
   useEffect(() => {
     applyMoodPreset(userMood);

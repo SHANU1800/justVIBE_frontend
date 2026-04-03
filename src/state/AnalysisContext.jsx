@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import * as api from '../services/mlApi';
 
 const AnalysisContext = createContext(null);
@@ -11,6 +11,7 @@ export function AnalysisProvider({ children }) {
   const [backendIssue, setBackendIssue] = useState(null);
   const [modelStatus, setModelStatus] = useState(null);
   const [modelDiagnostics, setModelDiagnostics] = useState(null);
+  const backendCheckInFlightRef = useRef(false);
 
   const hasMissingCoreModels = (models = {}, statusPayload = {}) => {
     if (typeof statusPayload?.core_models?.all_missing === 'boolean') {
@@ -22,8 +23,13 @@ export function AnalysisProvider({ children }) {
   };
 
   const checkBackend = useCallback(async () => {
+    if (backendCheckInFlightRef.current) {
+      return false;
+    }
+
+    backendCheckInFlightRef.current = true;
     try {
-      const health = await api.checkHealth();
+      const health = await api.checkHealth({ timeout: 8000 });
       const models = await api.getModelStatus();
       const modelMap = models.models || null;
       setModelStatus(modelMap);
@@ -57,6 +63,8 @@ export function AnalysisProvider({ children }) {
       setBackendStatus('offline');
       setBackendIssue('Cannot reach backend service.');
       return false;
+    } finally {
+      backendCheckInFlightRef.current = false;
     }
   }, []);
 

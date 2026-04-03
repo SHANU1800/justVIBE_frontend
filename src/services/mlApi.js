@@ -97,12 +97,16 @@ function normalizeBody(body) {
 
 // ── Health & Status ────────────────────────────────────────────
 
-export async function checkHealth() {
-  return request('/health');
+export async function checkHealth(options = {}) {
+  return request('/health', {
+    timeout: options.timeout || 10000,
+  });
 }
 
-export async function getModelStatus() {
-  return request('/model/status');
+export async function getModelStatus(options = {}) {
+  return request('/model/status', {
+    timeout: options.timeout || 15000,
+  });
 }
 
 // ── Genre Detection ────────────────────────────────────────────
