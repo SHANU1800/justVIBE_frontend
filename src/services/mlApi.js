@@ -5,11 +5,9 @@
 
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || (
-  import.meta.env.PROD
-    ? 'https://spots-cfr-quiz-salaries.trycloudflare.com'
-    : 'http://127.0.0.1:6261'
-);
+const API_BASE = import.meta.env.PROD
+  ? 'https://spots-cfr-quiz-salaries.trycloudflare.com'
+  : (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:6261');
 const TIMEOUT_MS = 15000;
 
 const apiClient = axios.create({
