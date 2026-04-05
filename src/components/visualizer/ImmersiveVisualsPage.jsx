@@ -151,10 +151,13 @@ const MOOD_PROFILE = {
 };
 
 export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
-  const { audioRef, isPlaying, togglePlay, getSharedAnalyserNode } = usePlayer();
+  const { audioRef, isPlaying, togglePlay, getSharedAnalyserNode, currentTrack } = usePlayer();
   const mood = MOOD_PROFILE[userMood] ?? MOOD_PROFILE.chill;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatsEnabled, setBeatsEnabled] = useState(true);
+  const [reducedMotion, setReducedMotion] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  );
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -170,6 +173,14 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
   const prevAmpRef = useRef(null);
   const spikeRef = useRef(null);
   const trailBarsRef = useRef(null);
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return undefined;
+    const onChange = () => setReducedMotion(mq.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+
   const motionRef = useRef({
     lastTs: 0,
     hotspotAngle: 0,
@@ -343,6 +354,7 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
         isPlaying,
         mood,
         beatsEnabled,
+        reducedMotion,
       );
     };
 
@@ -352,7 +364,7 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
       window.removeEventListener('resize', resize);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isPlaying, mood, beatsEnabled]);
+  }, [isPlaying, mood, beatsEnabled, reducedMotion]);
 
   return (
     <div
@@ -372,7 +384,7 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
           toggleFullscreen();
         }
       }}
-      title="Press Space to play/pause · F for fullscreen"
+      title="Tap canvas, Space, or Play to toggle · F fullscreen"
       style={{
         position: 'relative',
         width: '100%',
@@ -385,6 +397,7 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
     >
       <canvas
         ref={canvasRef}
+        role="presentation"
         style={{
           position: 'relative',
           zIndex: 10,
@@ -392,8 +405,77 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
           width: '100%',
           height: '100%',
           filter: 'saturate(1.2) contrast(1.06)',
+          cursor: 'pointer',
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          resumeAudio();
+          togglePlay();
         }}
       />
+
+      {/* Now playing — subtle, does not compete with the canvas */}
+      {currentTrack?.name && (
+        <div
+          className="pointer-events-none select-none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 15,
+            padding: '1rem 1.25rem 2.5rem',
+            background: 'linear-gradient(to bottom, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0) 100%)',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.7rem',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'rgba(148,163,184,0.85)',
+              marginBottom: '0.25rem',
+            }}
+          >
+            Now playing
+          </div>
+          <div
+            className="truncate max-w-[min(90vw,36rem)] mx-auto"
+            style={{
+              fontFamily: 'var(--font-display, system-ui)',
+              fontSize: 'clamp(0.95rem, 2.2vw, 1.15rem)',
+              fontWeight: 700,
+              color: 'rgba(248,250,252,0.95)',
+              textShadow: '0 1px 24px rgba(0,0,0,0.55)',
+            }}
+            title={currentTrack.name}
+          >
+            {currentTrack.name}
+          </div>
+        </div>
+      )}
+
+      <div
+        className="pointer-events-none select-none"
+        style={{
+          position: 'absolute',
+          top: '0.65rem',
+          right: '0.75rem',
+          zIndex: 16,
+          fontSize: '10px',
+          letterSpacing: '0.06em',
+          color: 'rgba(148,163,184,0.55)',
+          maxWidth: '11rem',
+          textAlign: 'right',
+          lineHeight: 1.35,
+        }}
+      >
+        Tap canvas · Space · F
+        {reducedMotion && (
+          <span className="block mt-1 text-emerald-400/80">Reduced motion on</span>
+        )}
+      </div>
 
       <div
         style={{
@@ -402,10 +484,14 @@ export default function ImmersiveVisualsPage({ userMood = 'chill' }) {
           bottom: 0,
           zIndex: 20,
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'center',
           alignItems: 'center',
           gap: '0.75rem',
           paddingBottom: '2rem',
+          paddingInline: '1rem',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
         }}
       >
         <button
@@ -513,7 +599,10 @@ function drawRadialBarsOnly(
   isPlaying,
   mood,
   beatsEnabled,
+  reducedMotion = false,
 ) {
+  const beatFx = beatsEnabled && !reducedMotion;
+  const motionScale = reducedMotion ? 0.2 : 1;
   const time = ts * 0.001;
   const cx = width * 0.5;
   const cy = height * 0.5;
@@ -608,7 +697,7 @@ function drawRadialBarsOnly(
     (bassEnergy > 0.23 && bassRise > 0.045)
   );
 
-  if (beatsEnabled && (smallOnset || bigOnset)) {
+  if (beatFx && (smallOnset || bigOnset)) {
     motion.lastBeatTs = time;
     const baseStrength = clamp(0.4 + bassEnergy * 0.55 + Math.max(0, bassRise) * 4.8, 0.35, 0.95);
     const rippleStrength = bigOnset ? clamp(baseStrength * 1.35, 0.5, 1.4) : baseStrength;
@@ -622,15 +711,15 @@ function drawRadialBarsOnly(
     motion.ripples = ripples;
   }
 
-  if (beatsEnabled && bigOnset) {
+  if (beatFx && bigOnset) {
     motion.beatPulse = 1;
     motion.lastBigBeatTs = time;
   }
 
   const kickOnset = isPlaying && (bassEnergy > 0.13 && bassRise > 0.016);
   const snareOnset = isPlaying && (highEnergy > 0.09 && highRise > 0.012);
-  if (beatsEnabled && kickOnset) motion.kickPulse = 1;
-  if (beatsEnabled && snareOnset) motion.snarePulse = 1;
+  if (beatFx && kickOnset) motion.kickPulse = 1;
+  if (beatFx && snareOnset) motion.snarePulse = 1;
 
   const beatDecayPerSec = isPlaying ? 8.4 : 12;
   motion.beatPulse = Math.max(0, (motion.beatPulse ?? 0) - (beatDecayPerSec * dt));
@@ -693,7 +782,7 @@ function drawRadialBarsOnly(
   const glowBase = mixColor(clampedSplitA, clampedSplitB, 0.45);
 
   // Slow rotation + moving hotspot arc (explicitly mood-dependent).
-  const rotationFactor = mood.rotationSpeed ?? 0.8;
+  const rotationFactor = (mood.rotationSpeed ?? 0.8) * motionScale;
   motion.rotation = (motion.rotation + dt * 0.11 * rotationFactor) % (Math.PI * 2);
   motion.hotspotAngle = (motion.hotspotAngle + dt * 0.22 * rotationFactor) % (Math.PI * 2);
   const globalRotation = motion.rotation;
@@ -709,12 +798,12 @@ function drawRadialBarsOnly(
   // Persistent circular border (visible at rest and during playback).
   const borderAlpha = isPlaying ? 0.66 : 0.44;
   const borderWidth = Math.max(5.2, minDim * 0.0082);
-  const pulseGlow = 0.4 + beatImpact * 0.75;
+  const pulseGlow = reducedMotion ? 0.45 : (0.4 + beatImpact * 0.75);
   ctx.beginPath();
   ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
   ctx.lineWidth = borderWidth;
   ctx.strokeStyle = `rgba(${mood.secondary[0]}, ${mood.secondary[1]}, ${mood.secondary[2]}, ${borderAlpha})`;
-  ctx.shadowBlur = (isPlaying ? 8 : 4) + beatImpact * 11;
+  ctx.shadowBlur = (isPlaying ? 8 : 4) + (reducedMotion ? 0 : beatImpact * 11);
   ctx.shadowColor = `rgba(${mood.primary[0]}, ${mood.primary[1]}, ${mood.primary[2]}, ${pulseGlow})`;
   ctx.stroke();
   ctx.shadowBlur = 0;
@@ -777,7 +866,7 @@ function drawRadialBarsOnly(
   const ampThreshold = isPlaying ? 0.14 : 0.2;
 
   const waveSpeedBins = mood.waveSpeed ?? 8;
-  const waveMix = clamp(mood.waveMix ?? 0.22, 0, 0.45);
+  const waveMix = clamp((mood.waveMix ?? 0.22) * (reducedMotion ? 0.45 : 1), 0, 0.45);
   const waveShift = (time * waveSpeedBins) % totalBars;
 
   const baseAmp = new Float32Array(totalBars);

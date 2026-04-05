@@ -176,8 +176,11 @@ function AppContent() {
 
   useEffect(() => {
     runBackendCheck(true);
-    const interval = setInterval(() => runBackendCheck(), 120000);
-    return () => clearInterval(interval);
+    // Re-check after 20s as a safety net: gunicorn --preload warmup takes ~20s,
+    // so models may not be loaded yet when the very first check runs at app mount.
+    const boot = setTimeout(() => runBackendCheck(true), 20000);
+    const interval = setInterval(() => runBackendCheck(), 90000);
+    return () => { clearTimeout(boot); clearInterval(interval); };
   }, [runBackendCheck]);
 
   useEffect(() => {
@@ -346,15 +349,20 @@ function AppContent() {
             )}
 
             {/* Model loaded count */}
-            {modelStatus && backendStatus !== 'offline' && (
-              <>
-                <span className="text-slate-700">·</span>
-                <span className="text-[10px] text-slate-500 shrink-0">
-                  {Object.values(modelStatus).filter(m => m.loaded).length}
-                  <span className="text-slate-700">/{Object.values(modelStatus).length}</span> models
-                </span>
-              </>
-            )}
+            {modelStatus && backendStatus !== 'offline' && (() => {
+              const all = Object.values(modelStatus);
+              const loaded = all.filter(m => m.loaded).length;
+              const exists = all.filter(m => m.exists).length;
+              const total = all.length;
+              return (
+                <>
+                  <span className="text-slate-700">·</span>
+                  <span className={`text-[10px] shrink-0 ${loaded > 0 ? 'text-emerald-400' : exists > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {loaded > 0 ? `${loaded}/${total} models` : exists > 0 ? `${exists} available, loading…` : 'no models'}
+                  </span>
+                </>
+              );
+            })()}
 
             {/* Genre timeline analysis */}
             {currentTrack && isLoadingTimeline && (
