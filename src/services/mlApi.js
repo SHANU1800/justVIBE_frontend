@@ -27,13 +27,24 @@ class ApiError extends Error {
   }
 }
 
+function stripHtml(str) {
+  // Remove HTML tags and collapse whitespace — avoids dumping raw HTML into UI hints.
+  return String(str).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function getAxiosErrorMessage(err, data, status) {
   if (!err.response) {
     return `Cannot reach backend service at ${API_BASE}. Please verify backend is running and VITE_API_BASE is correct.`;
   }
 
+  if (status === 429) {
+    return 'Rate limited — please wait a moment and try again.';
+  }
+
   if (typeof data === 'string' && data.trim()) {
-    return data;
+    // Never surface raw HTML (e.g. nginx error pages) to the user.
+    const cleaned = stripHtml(data);
+    return cleaned.length < 200 ? cleaned : `Server error (${status}).`;
   }
 
   if (status >= 500) {
@@ -43,7 +54,11 @@ function getAxiosErrorMessage(err, data, status) {
   return data?.message || data?.error || err.message || 'Network error';
 }
 
-async function request(endpoint, options = {}) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function request(endpoint, options = {}, _retryCount = 0) {
   const method = (options.method || 'GET').toLowerCase();
   const timeout = options.timeout || TIMEOUT_MS;
 
@@ -74,6 +89,18 @@ async function request(endpoint, options = {}) {
 
       const status = err.response?.status ?? 0;
       const data = err.response?.data;
+
+      // Auto-retry once on 429 with exponential back-off.
+      // Respect Retry-After header if present, otherwise use 8s then 20s.
+      if (status === 429 && _retryCount < 2) {
+        const retryAfterHeader = err.response?.headers?.['retry-after'];
+        const waitSec = retryAfterHeader
+          ? Math.min(60, Math.max(1, Number(retryAfterHeader)))
+          : (_retryCount === 0 ? 8 : 20);
+        await sleep(waitSec * 1000);
+        return request(endpoint, options, _retryCount + 1);
+      }
+
       const message = getAxiosErrorMessage(err, data, status);
       throw new ApiError(message, status, data);
     }

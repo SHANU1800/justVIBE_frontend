@@ -726,10 +726,21 @@ export function PlayerProvider({ children }) {
     const safeTarget = clamp(Number(targetRate) || 1, 0.5, 2.0);
     const fx = ensureFxGraph();
 
-    // Keep pitch correction enabled so slow/fast playback has fewer metallic artifacts.
-    audio.preservesPitch = true;
-    audio.mozPreservesPitch = true;
-    audio.webkitPreservesPitch = true;
+    // ── Pitch-correction strategy ─────────────────────────────────────────
+    // At rates ≤ 0.78 the browser's WSOLA time-stretch algorithm produces
+    // audible crackling. Disabling preservesPitch at low rates lets the pitch
+    // drop naturally (like slowing a tape) which sounds far cleaner.
+    // During ANY transition we also disable it temporarily to avoid artifacts
+    // while the rate is in motion, then restore the right value at the end.
+    const setPitch = (enabled) => {
+      audio.preservesPitch      = enabled;
+      audio.mozPreservesPitch   = enabled;
+      audio.webkitPreservesPitch = enabled;
+    };
+    const pitchAtTarget = safeTarget > 0.78;
+
+    // Disable during transition to prevent mid-ramp WSOLA glitches.
+    setPitch(false);
 
     if (rateRafRef.current) {
       cancelAnimationFrame(rateRafRef.current);
@@ -745,26 +756,29 @@ export function PlayerProvider({ children }) {
       audio.playbackRate = safeTarget;
       audio.defaultPlaybackRate = safeTarget;
       playbackRateRef.current = safeTarget;
+      setPitch(pitchAtTarget);
       return;
     }
 
     const t0 = performance.now();
-    // Longer smoothing for larger jumps to reduce crackle/zipper artifacts.
-    const durationMs = 180 + Math.abs(safeTarget - start) * 260;
     const rateDelta = Math.abs(safeTarget - start);
+    // Longer smoothing for larger jumps; even longer when going slow to give
+    // the decoder time to adjust without producing crackle.
+    const slowPenalty = safeTarget < 0.78 ? 180 : 0;
+    const durationMs = 240 + rateDelta * 340 + slowPenalty;
 
-    // Apply a subtle, temporary level dip around rate transitions to suppress zipper noise.
+    // Level dip during transition masks any remaining zipper artifacts.
     if (fx?.mixBus?.gain && fx?.ctx) {
       const gainParam = fx.mixBus.gain;
       const now = fx.ctx.currentTime;
-      const dipAmount = clamp(rateDelta * 0.08, 0.015, 0.08);
-      const dipLevel = clamp(1 - dipAmount, 0.9, 1);
+      const dipAmount = clamp(rateDelta * 0.10, 0.018, 0.12);
+      const dipLevel  = clamp(1 - dipAmount, 0.88, 1);
       const releaseAt = now + durationMs / 1000;
 
       gainParam.cancelScheduledValues(now);
       gainParam.setValueAtTime(gainParam.value, now);
-      gainParam.linearRampToValueAtTime(dipLevel, now + 0.016);
-      gainParam.linearRampToValueAtTime(1, releaseAt + 0.04);
+      gainParam.linearRampToValueAtTime(dipLevel, now + 0.018);
+      gainParam.linearRampToValueAtTime(1, releaseAt + 0.05);
     }
 
     const tick = (now) => {
@@ -780,6 +794,8 @@ export function PlayerProvider({ children }) {
         rateRafRef.current = requestAnimationFrame(tick);
       } else {
         rateRafRef.current = null;
+        // Restore pitch correction once we've settled at the target rate.
+        setPitch(pitchAtTarget);
       }
     };
 
