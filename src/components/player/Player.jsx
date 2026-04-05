@@ -10,6 +10,20 @@ function clampPlaybackSpeed(v) {
   return Math.min(2, Math.max(0.5, n));
 }
 
+/** One-tap sound presets — warmth, reverb %, stereo %, intensity %, AI strength %, speed */
+const QUICK_PROFILE_DEFAULTS = {
+  studio: { profileStrength: 95, intensityPct: 100, warmthDb: 1.5, reverbAmountPct: 12, stereoWidthPct: 105, speedValue: 1 },
+  night: { profileStrength: 110, intensityPct: 120, warmthDb: 3.5, reverbAmountPct: 24, stereoWidthPct: 96, speedValue: 1 },
+  dream: { profileStrength: 120, intensityPct: 130, warmthDb: 2.5, reverbAmountPct: 36, stereoWidthPct: 116, speedValue: 0.75 },
+  purist: { profileStrength: 75, intensityPct: 85, warmthDb: 0, reverbAmountPct: 0, stereoWidthPct: 100, speedValue: 1 },
+  club: { profileStrength: 118, intensityPct: 128, warmthDb: 2.2, reverbAmountPct: 8, stereoWidthPct: 128, speedValue: 1 },
+  vinyl: { profileStrength: 102, intensityPct: 108, warmthDb: 4.2, reverbAmountPct: 10, stereoWidthPct: 94, speedValue: 0.97 },
+  cafe: { profileStrength: 88, intensityPct: 92, warmthDb: 2, reverbAmountPct: 14, stereoWidthPct: 102, speedValue: 1 },
+  bass: { profileStrength: 112, intensityPct: 118, warmthDb: 5.5, reverbAmountPct: 12, stereoWidthPct: 86, speedValue: 1 },
+  arena: { profileStrength: 94, intensityPct: 100, warmthDb: 0.5, reverbAmountPct: 48, stereoWidthPct: 124, speedValue: 1 },
+  focus: { profileStrength: 85, intensityPct: 88, warmthDb: -1.2, reverbAmountPct: 6, stereoWidthPct: 98, speedValue: 1 },
+};
+
 export default function Player({
   userMood = 'chill',
   onMoodChange = () => {},
@@ -180,32 +194,14 @@ export default function Player({
   }, [sleepMinutes, pause]);
 
   const applyQuickProfile = useCallback((profile) => {
-    if (profile === 'studio') {
-      setProfileStrength(95);
-      setIntensityPct(100);
-      setWarmthDb(1.5);
-      setReverbAmountPct(12);
-      setStereoWidthPct(105);
-      setSpeedValue(1);
-      return;
-    }
-    if (profile === 'night') {
-      setProfileStrength(110);
-      setIntensityPct(120);
-      setWarmthDb(3.5);
-      setReverbAmountPct(24);
-      setStereoWidthPct(96);
-      setSpeedValue(1);
-      return;
-    }
-    if (profile === 'dream') {
-      setProfileStrength(120);
-      setIntensityPct(130);
-      setWarmthDb(2.5);
-      setReverbAmountPct(36);
-      setStereoWidthPct(116);
-      setSpeedValue(0.75);
-    }
+    const p = QUICK_PROFILE_DEFAULTS[profile];
+    if (!p) return;
+    setProfileStrength(p.profileStrength);
+    setIntensityPct(p.intensityPct);
+    setWarmthDb(p.warmthDb);
+    setReverbAmountPct(p.reverbAmountPct);
+    setStereoWidthPct(p.stereoWidthPct);
+    setSpeedValue(p.speedValue);
   }, []);
 
   return (
@@ -288,7 +284,7 @@ export default function Player({
               <div className="text-sm text-slate-400">or click to browse — MP3, WAV, FLAC, OGG, M4A</div>
             </div>
           ) : (
-            <div className="playlist overflow-y-auto pr-1 max-h-[50vh] xl:max-h-[58vh]">
+            <div className="playlist playlist-panel-scroll">
               {playlist.map((track, i) => (
                 <div
                   key={track.id}
@@ -466,11 +462,38 @@ export default function Player({
 
                 {showAdvanced && (
                   <div className="mt-3 space-y-3 text-[11px] text-slate-300">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('studio')}>Studio Clean</button>
-                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('night')}>Deep Night</button>
-                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('dream')}>Dream Tape</button>
-                      <button type="button" className="rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-2 py-1.5 hover:bg-cyan-500/20" onClick={() => handleListeningModeChange(effectiveListeningMode)}>Reapply Mode</button>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Quick presets set warmth, space, stereo, intensity, and speed. Use <span className="text-slate-400">Reapply</span> to refresh ML EQ for the current listening mode.
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {[
+                        { id: 'studio', label: 'Studio Clean' },
+                        { id: 'night', label: 'Deep Night' },
+                        { id: 'dream', label: 'Dream Tape' },
+                        { id: 'purist', label: 'Purist / Flat' },
+                        { id: 'club', label: 'Club Push' },
+                        { id: 'vinyl', label: 'Vinyl Warm' },
+                        { id: 'cafe', label: 'Café Morning' },
+                        { id: 'bass', label: 'Bass Tunnel' },
+                        { id: 'arena', label: 'Arena Hall' },
+                        { id: 'focus', label: 'Desk Focus' },
+                      ].map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-left hover:bg-violet-500/20 hover:border-violet-400/25 transition-colors"
+                          onClick={() => applyQuickProfile(id)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-2 py-1.5 hover:bg-cyan-500/20 sm:col-span-3 text-center font-semibold text-cyan-100/95"
+                        onClick={() => handleListeningModeChange(effectiveListeningMode)}
+                      >
+                        Reapply listening mode (ML)
+                      </button>
                     </div>
 
                     <div>
