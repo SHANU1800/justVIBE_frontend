@@ -375,9 +375,9 @@ export default function Player({
                 </div>
 
                 <div className="rounded-xl border border-white/[0.08] bg-slate-900/40 p-3 text-[11px] text-slate-300">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                  <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-12 shrink-0 text-slate-400 font-medium">Speed</span>
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">Speed</span>
                       <input
                         type="range"
                         min="0.5"
@@ -390,7 +390,7 @@ export default function Player({
                       <span className="w-10 shrink-0 text-right text-slate-300 tabular-nums text-[10px]">{speedValue.toFixed(2)}×</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-12 shrink-0 text-slate-400 font-medium">Intensity</span>
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">Intensity</span>
                       <input
                         type="range" min="0" max="150" step="1" value={intensityPct}
                         onChange={(e) => setIntensityPct(parseInt(e.target.value, 10))}
@@ -399,7 +399,7 @@ export default function Player({
                       <span className="w-8 shrink-0 text-right text-slate-400">{intensityPct}%</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-12 shrink-0 text-slate-400 font-medium">Warmth</span>
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">Warmth</span>
                       <input
                         type="range" min="-6" max="6" step="0.1" value={warmthDb}
                         onChange={(e) => setWarmthDb(parseFloat(e.target.value))}
@@ -408,13 +408,39 @@ export default function Player({
                       <span className="w-8 shrink-0 text-right text-slate-400">{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)}</span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-12 shrink-0 text-slate-400 font-medium">Space</span>
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">Space</span>
                       <input
                         type="range" min="0" max="60" step="1" value={reverbAmountPct}
                         onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))}
                         className="flex-1 accent-cyan-400 min-w-0"
                       />
                       <span className="w-8 shrink-0 text-right text-slate-400">{reverbAmountPct}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">Stereo width</span>
+                      <input
+                        type="range"
+                        min="70"
+                        max="140"
+                        step="1"
+                        value={stereoWidthPct}
+                        onChange={(e) => setStereoWidthPct(parseInt(e.target.value, 10))}
+                        className="flex-1 accent-fuchsia-400 min-w-0"
+                      />
+                      <span className="w-8 shrink-0 text-right text-slate-400">{stereoWidthPct}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-[6.75rem] shrink-0 text-slate-400 font-medium">AI strength</span>
+                      <input
+                        type="range"
+                        min="50"
+                        max="150"
+                        step="1"
+                        value={profileStrength}
+                        onChange={(e) => setProfileStrength(parseInt(e.target.value, 10))}
+                        className="flex-1 accent-violet-400 min-w-0"
+                      />
+                      <span className="w-8 shrink-0 text-right text-slate-400">{profileStrength}%</span>
                     </div>
                   </div>
                 </div>
@@ -488,16 +514,6 @@ export default function Player({
                       >
                         Reapply listening mode (ML)
                       </button>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1"><span>Stereo Width</span><span>{stereoWidthPct}%</span></div>
-                      <input type="range" min="70" max="140" step="1" value={stereoWidthPct} onChange={(e) => setStereoWidthPct(parseInt(e.target.value, 10))} className="w-full accent-fuchsia-400" />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1"><span>AI Strength</span><span>{profileStrength}%</span></div>
-                      <input type="range" min="50" max="150" step="1" value={profileStrength} onChange={(e) => setProfileStrength(parseInt(e.target.value, 10))} className="w-full accent-violet-400" />
                     </div>
 
                     <div className="pt-1 border-t border-white/10">
