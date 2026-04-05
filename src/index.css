@@ -1496,6 +1496,17 @@ body {
 
 .player-mode-group { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
 
+/* Horizontal control strip: modes wrap cleanly next to label */
+.player-mode-row--strip {
+  flex-wrap: wrap;
+  align-items: center;
+}
+@media (min-width: 1024px) {
+  .player-mode-row--strip .player-mode-group {
+    justify-content: flex-start;
+  }
+}
+
 .player-mode-btn {
   padding: 4px 11px;
   border-radius: var(--radius-full);

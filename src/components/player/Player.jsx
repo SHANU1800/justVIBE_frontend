@@ -245,9 +245,9 @@ export default function Player({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* Playlist Panel */}
-        <div className="xl:col-span-8 rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
+      <div className="flex flex-col gap-6 items-stretch">
+        {/* Playlist — full width */}
+        <div className="w-full rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Icon name="clipboard" className="h-5 w-5" />
@@ -341,113 +341,108 @@ export default function Player({
           )}
         </div>
 
-        {/* Now Playing Panel */}
-        <div className="xl:col-span-4 rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Icon name="headphones" className="h-5 w-5" />
-              Now Playing
-            </h3>
+        {/* Now playing + modes + sliders — horizontal strip below playlist (stacks on small screens) */}
+        <div className="w-full rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-4 md:p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
+          <div className="flex items-center gap-2 mb-3 md:mb-4">
+            <Icon name="headphones" className="h-5 w-5 text-violet-300/90" />
+            <h3 className="text-lg font-semibold">Now playing & controls</h3>
           </div>
 
           {currentTrack ? (
-            <div className="flex flex-col items-center gap-4">
-              {/* Compact Cover Art */}
-              <div style={{
-                width: 'min(38vw, 132px)',
-                aspectRatio: '1 / 1',
-                borderRadius: '14px',
-                background: 'var(--gradient-neon)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                  boxShadow: isPlaying ? '0 0 40px rgba(155,114,248,0.55), 0 0 80px rgba(155,114,248,0.2)' : '0 4px 20px rgba(0,0,0,0.5)',
-                transition: 'all 0.5s ease',
-                animation: isPlaying ? 'cover-pulse 3s ease-in-out infinite' : 'none',
-              }}>
-                <Icon name="music" className="h-11 w-11 text-white" />
-              </div>
-
-              {/* Track Info */}
-              <div style={{ textAlign: 'center', width: '100%', maxWidth: '28rem' }}>
-                <div className="truncate" style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, marginBottom: '2px' }}>
-                  {currentTrack.name}
+            <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-5">
+              {/* Art + title */}
+              <div className="flex flex-row items-center gap-3 shrink-0 lg:max-w-[min(100%,17rem)]">
+                <div
+                  className="shrink-0 rounded-xl flex items-center justify-center h-[4.5rem] w-[4.5rem] sm:h-[5rem] sm:w-[5rem]"
+                  style={{
+                    background: 'var(--gradient-neon)',
+                    boxShadow: isPlaying ? '0 0 28px rgba(155,114,248,0.45)' : '0 4px 16px rgba(0,0,0,0.45)',
+                    transition: 'all 0.5s ease',
+                    animation: isPlaying ? 'cover-pulse 3s ease-in-out infinite' : 'none',
+                  }}
+                >
+                  <Icon name="music" className="h-9 w-9 sm:h-10 sm:w-10 text-white" />
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                  {isPlaying ? 'Playing now' : 'Ready to play'}
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="truncate font-bold text-slate-100" style={{ fontFamily: 'var(--font-display)', fontSize: '1rem' }}>
+                    {currentTrack.name}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {isPlaying ? 'Playing' : 'Ready'}
+                  </div>
                 </div>
               </div>
 
-              {/* Listening Modes */}
-              <div className="player-mode-row">
-                <span className="player-mode-label">Listening Mode</span>
-                <div className="player-mode-group">
-                  {PLAYER_MODES.map(mode => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      className={`player-mode-btn ${effectiveListeningMode === mode.value ? 'active' : ''}`}
-                      onClick={() => handleListeningModeChange(mode.value)}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
+              {/* Listening modes */}
+              <div className="flex flex-col gap-1.5 min-w-0 flex-1 lg:max-w-xl">
+                <div className="player-mode-row player-mode-row--strip">
+                  <span className="player-mode-label">Mode</span>
+                  <div className="player-mode-group">
+                    {PLAYER_MODES.map(mode => (
+                      <button
+                        key={mode.value}
+                        type="button"
+                        className={`player-mode-btn ${effectiveListeningMode === mode.value ? 'active' : ''}`}
+                        onClick={() => handleListeningModeChange(mode.value)}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              {effectiveModeHint && (
-                <div className="text-[11px] text-slate-400 text-center -mt-2">{effectiveModeHint}</div>
-              )}
-
-              {/* ── Always-visible quick controls ── */}
-              <div className="w-full space-y-2.5 rounded-xl border border-white/[0.08] bg-slate-900/40 p-3 text-[11px] text-slate-300">
-                {/* Speed — full range 0.5×–2× (matches audio playbackRate clamp) */}
-                <div className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-slate-400 font-medium">Speed</span>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2"
-                    step="0.01"
-                    value={speedValue}
-                    onChange={(e) => setSpeedValue(clampPlaybackSpeed(parseFloat(e.target.value)))}
-                    className="flex-1 accent-violet-400 min-w-0"
-                  />
-                  <span className="w-11 shrink-0 text-right text-slate-300 tabular-nums">{speedValue.toFixed(2)}×</span>
-                </div>
-                {/* Intensity — scales EQ strength 0→150% */}
-                <div className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-slate-400 font-medium">Intensity</span>
-                  <input
-                    type="range" min="0" max="150" step="1" value={intensityPct}
-                    onChange={(e) => setIntensityPct(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-violet-400"
-                  />
-                  <span className="w-9 text-right text-slate-400">{intensityPct}%</span>
-                </div>
-                {/* Warmth */}
-                <div className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-slate-400 font-medium">Warmth</span>
-                  <input
-                    type="range" min="-6" max="6" step="0.1" value={warmthDb}
-                    onChange={(e) => setWarmthDb(parseFloat(e.target.value))}
-                    className="flex-1 accent-amber-400"
-                  />
-                  <span className="w-9 text-right text-slate-400">{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)}</span>
-                </div>
-                {/* Reverb */}
-                <div className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-slate-400 font-medium">Space</span>
-                  <input
-                    type="range" min="0" max="60" step="1" value={reverbAmountPct}
-                    onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-cyan-400"
-                  />
-                  <span className="w-9 text-right text-slate-400">{reverbAmountPct}%</span>
-                </div>
+                {effectiveModeHint && (
+                  <div className="text-[10px] text-slate-500 leading-snug px-1">{effectiveModeHint}</div>
+                )}
               </div>
 
-              {/* ── Collapsible advanced panel ── */}
-              <div className="w-full rounded-xl border border-white/[0.06] bg-slate-900/25 p-3">
+              {/* Sliders — 2×2 on wide, single column when narrow */}
+              <div className="rounded-xl border border-white/[0.08] bg-slate-900/40 p-3 text-[11px] text-slate-300 min-w-0 flex-1 lg:min-w-[14rem] lg:max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-12 shrink-0 text-slate-400 font-medium">Speed</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.01"
+                      value={speedValue}
+                      onChange={(e) => setSpeedValue(clampPlaybackSpeed(parseFloat(e.target.value)))}
+                      className="flex-1 accent-violet-400 min-w-0"
+                    />
+                    <span className="w-10 shrink-0 text-right text-slate-300 tabular-nums text-[10px]">{speedValue.toFixed(2)}×</span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-12 shrink-0 text-slate-400 font-medium">Intensity</span>
+                    <input
+                      type="range" min="0" max="150" step="1" value={intensityPct}
+                      onChange={(e) => setIntensityPct(parseInt(e.target.value, 10))}
+                      className="flex-1 accent-violet-400 min-w-0"
+                    />
+                    <span className="w-8 shrink-0 text-right text-slate-400">{intensityPct}%</span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-12 shrink-0 text-slate-400 font-medium">Warmth</span>
+                    <input
+                      type="range" min="-6" max="6" step="0.1" value={warmthDb}
+                      onChange={(e) => setWarmthDb(parseFloat(e.target.value))}
+                      className="flex-1 accent-amber-400 min-w-0"
+                    />
+                    <span className="w-8 shrink-0 text-right text-slate-400">{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-12 shrink-0 text-slate-400 font-medium">Space</span>
+                    <input
+                      type="range" min="0" max="60" step="1" value={reverbAmountPct}
+                      onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))}
+                      className="flex-1 accent-cyan-400 min-w-0"
+                    />
+                    <span className="w-8 shrink-0 text-right text-slate-400">{reverbAmountPct}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* More options */}
+              <div className="rounded-xl border border-white/[0.06] bg-slate-900/25 p-3 min-w-0 flex-1 lg:max-w-sm lg:shrink-0">
                 <button
                   type="button"
                   className="w-full flex items-center justify-between text-xs font-semibold text-slate-200"
@@ -529,11 +524,11 @@ export default function Player({
               </div>
             </div>
           ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon inline-flex items-center justify-center"><Icon name="music" className="h-14 w-14" /></div>
-              <div className="empty-state-title">No Track Selected</div>
-              <div className="empty-state-text">
-                Import some music files to start your justVIBE experience
+            <div className="empty-state py-6">
+              <div className="empty-state-icon inline-flex items-center justify-center"><Icon name="music" className="h-12 w-12" /></div>
+              <div className="empty-state-title text-base">No track selected</div>
+              <div className="empty-state-text text-sm">
+                Add files to the playlist above to use modes and sliders
               </div>
             </div>
           )}
