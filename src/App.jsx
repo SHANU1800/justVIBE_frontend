@@ -620,10 +620,16 @@ function AppContent() {
                   }
                 </button>
                 <input
-                  type="range" min="0" max="1.5" step="0.01"
-                  value={isMuted ? 0 : volume}
-                  onChange={e => dispatch({ type: 'SET_VOLUME', payload: parseFloat(e.target.value) })}
-                  className="w-16 md:w-20 accent-violet-400"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={isMuted ? 0 : Math.min(1, Math.max(0, Number(volume) || 0))}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    dispatch({ type: 'SET_VOLUME', payload: Number.isFinite(v) ? v : 0 });
+                  }}
+                  className="w-16 md:w-20 accent-violet-400 touch-none"
                 />
               </div>
 

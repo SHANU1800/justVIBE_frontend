@@ -157,8 +157,13 @@ function playerReducer(state, action) {
       return { ...state, currentTime: action.payload };
     case 'SET_DURATION':
       return { ...state, duration: action.payload };
-    case 'SET_VOLUME':
-      return { ...state, volume: action.payload, isMuted: action.payload === 0 };
+    case 'SET_VOLUME': {
+      // HTMLMediaElement.volume must be in [0, 1]; values outside throw IndexSizeError
+      // and crash React (blank page) when the audio volume effect runs.
+      const raw = Number(action.payload);
+      const v = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : state.volume;
+      return { ...state, volume: v, isMuted: v === 0 };
+    }
     case 'TOGGLE_MUTE':
       return { ...state, isMuted: !state.isMuted };
     case 'TOGGLE_SHUFFLE':
@@ -716,7 +721,15 @@ export function PlayerProvider({ children }) {
 
   useEffect(() => {
     const audio = audioRef.current;
-    audio.volume = state.isMuted ? 0 : state.volume;
+    if (!audio) return;
+    const v = state.isMuted ? 0 : Math.min(1, Math.max(0, Number(state.volume) || 0));
+    if (Number.isFinite(v)) {
+      try {
+        audio.volume = v;
+      } catch {
+        /* ignore — some browsers still throw if out of range */
+      }
+    }
   }, [state.volume, state.isMuted]);
 
   const setPlaybackRate = useCallback((targetRate = 1) => {
