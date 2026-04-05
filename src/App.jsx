@@ -288,46 +288,41 @@ function AppContent() {
         )}
 
         {activePage === 'player' && (
-          <>
-            {/* ── Spectrum Visualizer ─────────────────────────── */}
-            <div className="border-b border-white/[0.07] bg-gradient-to-r from-violet-500/10 via-fuchsia-500/[0.06] to-cyan-500/10 p-2 md:p-3">
-              <div className="flex items-center justify-between px-1 pb-2">
-                <div className="text-[11px] uppercase tracking-widest text-slate-300">Original vs Current</div>
-                <div className="flex items-center gap-1">
-                  {[
-                    { id: 'frequency', label: 'Freq' },
-                    { id: 'bars', label: 'Bars' },
-                    { id: 'waveform', label: 'Wave' },
-                  ].map(m => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      className={`h-7 px-2 rounded-md border text-[10px] font-semibold transition-colors ${topGraphMode === m.id ? 'border-cyan-300/70 text-cyan-100 bg-cyan-500/25' : 'border-white/20 text-slate-300 bg-slate-800/60 hover:border-white/35'}`}
-                      onClick={() => setTopGraphMode(m.id)}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-          <div className="rounded-2xl border border-violet-400/25 overflow-hidden shadow-[0_0_20px_rgba(155,114,248,0.18)]">
-                <AudioVisualizer
-                  height={96}
-                  showControls={false}
-                  userMood={userMood}
-                  waveformOnly={false}
-                  analyserType="processed"
-                  graphMode={topGraphMode}
-                  compareOverlay={true}
-                  compareAnalyserType="original"
-                  cleanFrequencyOnly={false}
-                  minimal={true}
-                  tintKey="__theme__"
-                  showFrequencyGuides={false}
-                />
-              </div>
+          <div className="relative border-b border-white/[0.06] shrink-0">
+            {/* Mode toggle — floating overlay top-right */}
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              {[
+                { id: 'frequency', label: 'Freq' },
+                { id: 'bars',      label: 'Bars' },
+                { id: 'waveform',  label: 'Wave' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`h-6 px-2.5 rounded text-[9px] font-bold tracking-wide transition-all backdrop-blur-sm border ${
+                    topGraphMode === m.id
+                      ? 'bg-violet-500/55 text-violet-100 border-violet-400/50 shadow-[0_0_10px_rgba(155,114,248,0.4)]'
+                      : 'bg-black/40 text-slate-400 border-white/10 hover:text-slate-200 hover:border-white/20'
+                  }`}
+                  onClick={() => setTopGraphMode(m.id)}
+                >{m.label}</button>
+              ))}
             </div>
-          </>
+            <AudioVisualizer
+              height={112}
+              showControls={false}
+              userMood={userMood}
+              waveformOnly={false}
+              analyserType="processed"
+              graphMode={topGraphMode}
+              compareOverlay={true}
+              compareAnalyserType="original"
+              cleanFrequencyOnly={false}
+              minimal={true}
+              tintKey="__theme__"
+              showFrequencyGuides={false}
+            />
+          </div>
         )}
 
         {/* ── Page Content ────────────────────────────────── */}
@@ -337,195 +332,145 @@ function AppContent() {
 
         {/* ── Player Bar ──────────────────────────────────── */}
         {!isVisualsPage && (
-          <div className={`jv-player-bar ${isPlaying ? 'playing' : ''} min-h-24 h-auto flex flex-wrap xl:flex-nowrap items-center gap-3 px-3 md:px-5 py-2`}>
+          <div className={`jv-player-bar ${isPlaying ? 'playing' : ''} h-20 flex items-center gap-4 px-3 md:px-5 shrink-0`}>
 
-          {/* Track Info */}
-          <div className="flex items-center gap-3 min-w-0 w-full xl:w-64 2xl:w-72">
-            <div className="relative h-11 w-11 shrink-0 rounded-xl bg-linear-to-br from-violet-500 to-cyan-400 grid place-items-center shadow-[0_0_20px_rgba(139,92,246,0.35)]">
-              <Icon name="music" className="relative z-10 h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-100">
-                {currentTrack ? currentTrack.name : 'No Track'}
+            {/* ── Left: Track info ────────────────────── */}
+            <div className="flex items-center gap-3 min-w-0 w-40 sm:w-52 md:w-60 shrink-0">
+              <div className={`relative h-10 w-10 shrink-0 rounded-xl overflow-hidden ${isPlaying ? 'shadow-[0_0_20px_rgba(155,114,248,0.55)]' : ''} transition-all duration-500`}>
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-fuchsia-500 to-cyan-500 flex items-center justify-center">
+                  <Icon name="music" className="h-4.5 w-4.5 text-white" />
+                </div>
+                {isPlaying && <div className="absolute inset-0 rounded-xl ring-2 ring-violet-400/40 animate-pulse" />}
               </div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {currentGenre
-                  ? <span className="inline-block px-2 py-0.5 rounded-full bg-violet-500/70 text-white text-[11px] capitalize">{currentGenre}</span>
-                  : currentTrack ? currentTrack.artist : 'Import music to start'}
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-semibold text-slate-100 leading-tight">
+                  {currentTrack ? currentTrack.name : 'No Track'}
+                </div>
+                <div className="mt-0.5">
+                  {currentGenre
+                    ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/50 text-violet-200 font-medium capitalize border border-violet-400/30">{currentGenre}</span>
+                    : <span className="text-[11px] text-slate-600">{currentTrack ? '' : 'Drop audio to begin'}</span>
+                  }
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Controls */}
-          <div className="order-3 xl:order-2 basis-full xl:basis-auto flex-1 min-w-0">
-            <div className="flex items-center justify-center gap-1.5 mb-2">
-              {/* A/B Loop markers */}
-              <button
-                className={`h-7 px-2 rounded-md border text-xs font-bold transition-colors ${loopA !== null ? 'border-amber-300/70 text-amber-200 bg-amber-500/20' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
-                title="Set loop start (A)"
-                onClick={setMarkerA}
-              >A</button>
-              <button
-                className={`h-7 px-2 rounded-md border text-xs font-bold transition-colors ${loopB !== null ? 'border-cyan-300/70 text-cyan-200 bg-cyan-500/20' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
-                title="Set loop end (B)"
-                onClick={setMarkerB}
-                disabled={loopA === null}
-              >B</button>
-              <button
-                className="h-7 px-2 rounded-md border border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35 text-xs font-bold"
-                title="Clear loop"
-                onClick={clearLoop}
-                disabled={loopA === null && loopB === null}
-              ><Icon name="close" className="h-3.5 w-3.5" /></button>
-
-              <button
-                className={`h-8 w-8 rounded-full border grid place-items-center transition-colors ${shuffle ? 'border-violet-300/70 text-violet-200 bg-violet-500/20' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
-                data-tooltip={`Shuffle: ${shuffle ? 'On' : 'Off'}`}
-                onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
-              ><Icon name="shuffle" className="h-4 w-4" /></button>
-              <button className="h-8 w-8 rounded-full border border-white/20 text-slate-200 bg-slate-800/70 hover:border-white/35 grid place-items-center" onClick={prevTrack}><Icon name="prev" className="h-4 w-4" /></button>
-              <button
-                className="h-10 w-10 rounded-full border border-violet-400/50 bg-gradient-to-r from-violet-600/90 to-cyan-500/80 text-white shadow-[0_0_24px_rgba(155,114,248,0.5)] hover:shadow-[0_0_38px_rgba(155,114,248,0.7)] hover:brightness-110 transition-all"
-                onClick={handlePlayPause}
-                disabled={Boolean(currentTrack) && isLoadingTimeline && !isPlaying}
-                title={Boolean(currentTrack) && isLoadingTimeline && !isPlaying ? 'Analyzing track before playback...' : ''}
-              >
-                {isPlaying ? <Icon name="pause" className="h-4 w-4 mx-auto" /> : <Icon name="play" className="h-4 w-4 mx-auto" />}
-              </button>
-              <button className="h-8 w-8 rounded-full border border-white/20 text-slate-200 bg-slate-800/70 hover:border-white/35 grid place-items-center" onClick={nextTrack}><Icon name="next" className="h-4 w-4" /></button>
-              <button
-                className={`h-8 w-8 rounded-full border grid place-items-center transition-colors ${repeat !== 'none' ? 'border-violet-300/70 text-violet-200 bg-violet-500/20' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
-                data-tooltip={`Repeat: ${repeat}`}
-                onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
-              >
-                {repeat === 'one' ? <Icon name="repeat-one" className="h-4 w-4" /> : <Icon name="repeat" className="h-4 w-4" />}
-              </button>
-            </div>
-
-            {/* Progress bar with A/B markers */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400 tabular-nums w-9 text-right">{formatTime(currentTime)}</span>
-              <div
-                className="relative h-2 flex-1 rounded-full bg-slate-700/70 cursor-pointer overflow-hidden"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pct = (e.clientX - rect.left) / rect.width;
-                  seekTo(pct * duration);
-                }}
-              >
-                <div className="h-full rounded-full bg-linear-to-r from-violet-400 to-cyan-400" style={{ width: `${progressPct}%` }} />
-                {loopAPct !== null && (
-                  <div className="progress-marker marker-a" style={{ left: `${loopAPct}%` }} title="Loop A" />
-                )}
-                {loopBPct !== null && (
-                  <div className="progress-marker marker-b" style={{ left: `${loopBPct}%` }} title="Loop B" />
-                )}
-                {loopAPct !== null && loopBPct !== null && (
-                  <div
-                    className="progress-loop-region"
-                    style={{ left: `${loopAPct}%`, width: `${loopBPct - loopAPct}%` }}
-                  />
-                )}
-              </div>
-              <span className="text-[11px] text-slate-400 tabular-nums w-9">{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Extra Controls: Volume, Speed, Transition */}
-          <div className="order-2 xl:order-3 flex items-center justify-start xl:justify-end gap-2 md:gap-3 shrink-0 w-full xl:w-auto flex-wrap">
-            {/* Volume */}
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                className="h-7 w-7 rounded-full border border-white/20 text-slate-200 bg-slate-800/70 hover:border-white/35 text-xs"
-                onClick={() => dispatch({ type: 'TOGGLE_MUTE' })}
-              >
-                {isMuted || volume === 0 ? <Icon name="volume-mute" className="h-3.5 w-3.5 mx-auto" /> : volume < 0.5 ? <Icon name="volume-low" className="h-3.5 w-3.5 mx-auto" /> : <Icon name="volume-high" className="h-3.5 w-3.5 mx-auto" />}
-              </button>
-              <input
-                type="range" min="0" max="1.5" step="0.01"
-                value={isMuted ? 0 : volume}
-                onChange={e => dispatch({ type: 'SET_VOLUME', payload: parseFloat(e.target.value) })}
-                className="w-16 md:w-20 accent-violet-400"
-              />
-              <span className="hidden sm:inline text-[11px] text-slate-400 tabular-nums w-9">
-                {Math.round((isMuted ? 0 : volume) * 100)}%
-              </span>
-            </div>
-
-            {/* Speed */}
-            <div className="hidden lg:flex items-center gap-1.5">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Speed</span>
-              <select
-                className="h-7 rounded-md border border-white/20 bg-slate-800/70 px-2 text-xs text-slate-200"
-                value={speed}
-                onChange={e => setSpeed(e.target.value)}
-              >
-                {SPEEDS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            {/* Modes */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Mode</span>
-              <select
-                className="sm:hidden h-7 max-w-34 rounded-md border border-white/20 bg-slate-800/70 px-2 text-[11px] text-slate-200"
-                value={listeningMode}
-                onChange={e => handleListeningModeChange(e.target.value)}
-              >
-                {PLAYER_MODES.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
-              </select>
-              <div className="hidden sm:flex items-center gap-1 overflow-x-auto max-w-[58vw] xl:max-w-none pb-1">
-                {PLAYER_MODES.map(mode => (
+            {/* ── Center: Transport + Progress ────────── */}
+            <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
+              {/* Transport row */}
+              <div className="flex items-center gap-1 md:gap-1.5">
+                {/* A/B loop — compact, only show when needed */}
+                <div className="flex items-center gap-0.5 mr-0.5 md:mr-1">
                   <button
-                    key={mode.value}
-                    type="button"
-                    className={`h-7 px-2 rounded-md border text-[10px] font-semibold whitespace-nowrap transition-colors ${listeningMode === mode.value ? 'border-violet-300/70 text-violet-100 bg-violet-500/30' : 'border-white/20 text-slate-300 bg-slate-800/70 hover:border-white/35'}`}
-                    onClick={() => handleListeningModeChange(mode.value)}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
+                    className={`h-6 w-6 rounded text-[10px] font-bold transition-all border ${loopA !== null ? 'border-amber-400/60 text-amber-200 bg-amber-500/20' : 'border-white/12 text-slate-600 hover:text-slate-400 hover:border-white/20'}`}
+                    title="Set loop A" onClick={setMarkerA}
+                  >A</button>
+                  <button
+                    className={`h-6 w-6 rounded text-[10px] font-bold transition-all border ${loopB !== null ? 'border-cyan-400/60 text-cyan-200 bg-cyan-500/20' : 'border-white/12 text-slate-600 hover:text-slate-400 hover:border-white/20'}`}
+                    title="Set loop B" onClick={setMarkerB} disabled={loopA === null}
+                  >B</button>
+                  {(loopA !== null || loopB !== null) && (
+                    <button className="h-6 w-6 rounded border border-white/12 text-slate-500 hover:text-rose-300 transition-colors" onClick={clearLoop}>
+                      <Icon name="close" className="h-3 w-3 mx-auto" />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  className={`h-7 w-7 rounded-full border grid place-items-center transition-all ${shuffle ? 'border-violet-400/55 text-violet-300 bg-violet-500/15' : 'border-white/12 text-slate-500 hover:text-slate-300 hover:border-white/25'}`}
+                  onClick={() => dispatch({ type: 'TOGGLE_SHUFFLE' })}
+                ><Icon name="shuffle" className="h-3.5 w-3.5" /></button>
+
+                <button
+                  className="h-8 w-8 rounded-full border border-white/12 text-slate-400 hover:text-white hover:border-white/25 grid place-items-center transition-all"
+                  onClick={prevTrack}
+                ><Icon name="prev" className="h-4 w-4" /></button>
+
+                <button
+                  className="h-11 w-11 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 text-white grid place-items-center shadow-[0_0_28px_rgba(155,114,248,0.55)] hover:shadow-[0_0_42px_rgba(155,114,248,0.75)] hover:scale-105 active:scale-95 transition-all"
+                  onClick={handlePlayPause}
+                  disabled={Boolean(currentTrack) && isLoadingTimeline && !isPlaying}
+                  title={Boolean(currentTrack) && isLoadingTimeline && !isPlaying ? 'Analyzing track…' : ''}
+                >
+                  {isPlaying ? <Icon name="pause" className="h-4.5 w-4.5" /> : <Icon name="play" className="h-4.5 w-4.5" />}
+                </button>
+
+                <button
+                  className="h-8 w-8 rounded-full border border-white/12 text-slate-400 hover:text-white hover:border-white/25 grid place-items-center transition-all"
+                  onClick={nextTrack}
+                ><Icon name="next" className="h-4 w-4" /></button>
+
+                <button
+                  className={`h-7 w-7 rounded-full border grid place-items-center transition-all ${repeat !== 'none' ? 'border-violet-400/55 text-violet-300 bg-violet-500/15' : 'border-white/12 text-slate-500 hover:text-slate-300 hover:border-white/25'}`}
+                  onClick={() => dispatch({ type: 'CYCLE_REPEAT' })}
+                >
+                  {repeat === 'one' ? <Icon name="repeat-one" className="h-3.5 w-3.5" /> : <Icon name="repeat" className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+
+              {/* Progress bar row */}
+              <div className="flex items-center gap-2 w-full max-w-xl">
+                <span className="text-[10px] text-slate-500 tabular-nums w-8 text-right" style={{ fontFamily: 'var(--font-mono)' }}>{formatTime(currentTime)}</span>
+                <div
+                  className="relative h-1.5 flex-1 rounded-full bg-white/[0.07] cursor-pointer overflow-hidden group hover:h-2 transition-all"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    seekTo((e.clientX - rect.left) / rect.width * duration);
+                  }}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+                    style={{ width: `${progressPct}%`, boxShadow: '0 0 10px rgba(155,114,248,0.6)' }}
+                  />
+                  {loopAPct !== null && <div className="progress-marker marker-a" style={{ left: `${loopAPct}%` }} />}
+                  {loopBPct !== null && <div className="progress-marker marker-b" style={{ left: `${loopBPct}%` }} />}
+                  {loopAPct !== null && loopBPct !== null && (
+                    <div className="progress-loop-region" style={{ left: `${loopAPct}%`, width: `${loopBPct - loopAPct}%` }} />
+                  )}
+                </div>
+                <span className="text-[10px] text-slate-500 tabular-nums w-8" style={{ fontFamily: 'var(--font-mono)' }}>{formatTime(duration)}</span>
               </div>
             </div>
 
-            {/* Transition duration */}
-            <div className="hidden md:flex items-center gap-1.5">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-slate-500">Transition</span>
-              <input
-                type="range" min="0" max="10" step="0.5"
-                value={transitionDuration}
-                onChange={e => setTransitionDuration(parseFloat(e.target.value))}
-                className="w-16 accent-cyan-400"
-              />
-              <span className="text-[11px] text-slate-400 tabular-nums w-8">
-                {transitionDuration}s
-              </span>
+            {/* ── Right: Volume + Auto EQ ──────────────── */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Volume */}
+              <div className="hidden sm:flex items-center gap-1.5">
+                <button
+                  className="h-7 w-7 rounded-full border border-white/12 text-slate-400 hover:text-white grid place-items-center transition-colors"
+                  onClick={() => dispatch({ type: 'TOGGLE_MUTE' })}
+                >
+                  {isMuted || volume === 0
+                    ? <Icon name="volume-mute" className="h-3.5 w-3.5 mx-auto" />
+                    : volume < 0.5
+                      ? <Icon name="volume-low" className="h-3.5 w-3.5 mx-auto" />
+                      : <Icon name="volume-high" className="h-3.5 w-3.5 mx-auto" />
+                  }
+                </button>
+                <input
+                  type="range" min="0" max="1.5" step="0.01"
+                  value={isMuted ? 0 : volume}
+                  onChange={e => dispatch({ type: 'SET_VOLUME', payload: parseFloat(e.target.value) })}
+                  className="w-16 md:w-20 accent-violet-400"
+                />
+              </div>
+
+              {/* Auto EQ pill */}
+              <button
+                type="button"
+                className={`h-9 px-3 md:px-3.5 rounded-xl border text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  autoEQEnabled
+                    ? 'border-emerald-400/55 text-emerald-200 bg-emerald-500/18 shadow-[0_0_18px_rgba(52,211,153,0.3)] hover:shadow-[0_0_28px_rgba(52,211,153,0.45)]'
+                    : 'border-white/15 text-slate-500 hover:text-slate-300 hover:border-white/25'
+                }`}
+                onClick={() => setAutoEQEnabled(!autoEQEnabled)}
+                title={autoEQEnabled ? 'Auto EQ active — continuously optimising EQ, bass, stereo and reverb' : 'Auto EQ off'}
+              >
+                <Icon name="brain" className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden md:inline">EQ {autoEQEnabled ? 'LIVE' : 'OFF'}</span>
+              </button>
             </div>
 
-            {/* Auto EQ (always visible on player bar) */}
-            <div className="flex items-center gap-2 xl:pl-1">
-              <button
-                type="button"
-                className={`sm:hidden h-9 w-9 rounded-xl border grid place-items-center transition-all ${autoEQEnabled ? 'border-emerald-300/80 text-emerald-50 bg-linear-to-r from-emerald-500/45 to-cyan-500/35 shadow-[0_0_18px_rgba(16,185,129,0.35)]' : 'border-white/25 text-slate-200 bg-slate-800/80 hover:border-white/45 hover:bg-slate-700/80'}`}
-                onClick={() => setAutoEQEnabled(!autoEQEnabled)}
-                title={autoEQEnabled ? 'Auto EQ Live' : 'Auto EQ Off'}
-                aria-label={autoEQEnabled ? 'Disable Auto EQ' : 'Enable Auto EQ'}
-              >
-                <Icon name="brain" className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className={`hidden sm:inline-flex h-9 md:h-10 px-3 md:px-4 rounded-xl border text-[11px] md:text-xs font-extrabold tracking-[0.08em] transition-all shadow-[0_0_0_rgba(0,0,0,0)] whitespace-nowrap ${autoEQEnabled ? 'border-emerald-300/80 text-emerald-50 bg-linear-to-r from-emerald-500/45 to-cyan-500/35 shadow-[0_0_22px_rgba(16,185,129,0.42)] hover:brightness-110' : 'border-white/25 text-slate-200 bg-slate-800/80 hover:border-white/45 hover:bg-slate-700/80'}`}
-                onClick={() => setAutoEQEnabled(!autoEQEnabled)}
-                title={autoEQEnabled ? 'Auto EQ is enabled and continuously optimizing EQ, bass, stereo, reverb and normalization' : 'Auto EQ is disabled'}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Icon name="brain" className="h-4 w-4" />
-                  AUTO EQ {autoEQEnabled ? 'LIVE' : 'OFF'}
-                </span>
-              </button>
-            </div>
-          </div>
           </div>
         )}
       </main>
