@@ -461,25 +461,41 @@ function drawPulseLayer(ctx, w, h, pulseValue, beatGlow, mood) {
 
 function drawSpectrumLayer(ctx, w, h, bars, mood, alphaMult = 1) {
   const tint = MOOD_TINT[mood] || MOOD_TINT.chill;
-  const stripH = h * 0.18;
-  const yBase = h - stripH - 8;
+  const isGray = mood === '__gray__';
+  const yFloor = h - 4;
+  const topPad = h * 0.1;
+  const usableH = yFloor - topPad;
 
-  const gap = 3;
-  const barW = (w - gap * (bars.length - 1) - 24) / bars.length;
-  let x = 12;
+  const gap = 2;
+  const barW = (w - gap * (bars.length - 1) - 16) / bars.length;
+  let x = 8;
 
   for (let i = 0; i < bars.length; i++) {
-    const bassBoost = 1 + (1 - i / bars.length) * 0.25;
+    const bassBoost = 1 + (1 - i / bars.length) * 0.22;
     const v = clamp01(bars[i] * bassBoost);
-    const barH = stripH * (0.08 + v * 0.92);
+    const barH = Math.max(3, usableH * (0.04 + v * 0.96));
+    const y = yFloor - barH;
 
-    const grad = ctx.createLinearGradient(0, yBase + stripH - barH, 0, yBase + stripH);
-    grad.addColorStop(0, rgba(tint, 0.82 * alphaMult));
-    grad.addColorStop(1, rgba(tint, 0.24 * alphaMult));
+    const grad = ctx.createLinearGradient(0, y, 0, yFloor);
+    if (isGray) {
+      grad.addColorStop(0, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.55 * alphaMult})`);
+      grad.addColorStop(1, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.08 * alphaMult})`);
+    } else {
+      grad.addColorStop(0, rgba(tint, 0.92 * alphaMult));
+      grad.addColorStop(0.55, rgba(tint, 0.55 * alphaMult));
+      grad.addColorStop(1, rgba(tint, 0.12 * alphaMult));
+    }
 
-    roundRect(ctx, x, yBase + stripH - barH, barW, barH, 4);
+    roundRect(ctx, x, y, barW, barH, Math.min(3, barW * 0.5));
     ctx.fillStyle = grad;
     ctx.fill();
+
+    if (!isGray && v > 0.35) {
+      ctx.shadowBlur = 6 + v * 8;
+      ctx.shadowColor = rgba(tint, 0.55 * alphaMult);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
 
     x += barW + gap;
   }
@@ -487,33 +503,80 @@ function drawSpectrumLayer(ctx, w, h, bars, mood, alphaMult = 1) {
 
 function drawFrequencySpectrumLayer(ctx, w, h, spectrum, mood, alpha = 0.9, lineWidth = 2, showGuides = true) {
   const tint = MOOD_TINT[mood] || MOOD_TINT.chill;
-  const yBase = h * 0.88;
-  const top = h * 0.1;
+  const isGray = mood === '__gray__';
+  const yFloor = h - 4;
+  const top = h * 0.06;
 
+  // Guide lines — very subtle
   if (showGuides) {
     ctx.beginPath();
     ctx.lineWidth = 1;
-    ctx.strokeStyle = rgba(tint, 0.16);
+    ctx.strokeStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},0.09)`;
     for (let i = 1; i <= 3; i++) {
-      const y = yBase - ((yBase - top) * i) / 4;
+      const y = yFloor - ((yFloor - top) * i) / 4;
       ctx.moveTo(8, y);
       ctx.lineTo(w - 8, y);
     }
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  ctx.lineWidth = lineWidth;
-  ctx.strokeStyle = rgba(tint, alpha);
+  if (spectrum.length === 0) return;
 
+  // Build the path points
+  const pts = [];
   for (let i = 0; i < spectrum.length; i++) {
     const x = (i / Math.max(1, spectrum.length - 1)) * (w - 16) + 8;
-    const y = yBase - clamp01(spectrum[i]) * (yBase - top);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    const y = yFloor - clamp01(spectrum[i]) * (yFloor - top);
+    pts.push([x, y]);
   }
 
+  // ── Filled area under the curve ──────────────────────────
+  const fillGrad = ctx.createLinearGradient(0, top, 0, yFloor);
+  if (isGray) {
+    fillGrad.addColorStop(0, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.18 * alpha})`);
+    fillGrad.addColorStop(1, `rgba(${tint[0]},${tint[1]},${tint[2]},0.01)`);
+  } else {
+    fillGrad.addColorStop(0, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.34 * alpha})`);
+    fillGrad.addColorStop(0.6, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.12 * alpha})`);
+    fillGrad.addColorStop(1, `rgba(${tint[0]},${tint[1]},${tint[2]},0.01)`);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], yFloor);
+  for (const [x, y] of pts) ctx.lineTo(x, y);
+  ctx.lineTo(pts[pts.length - 1][0], yFloor);
+  ctx.closePath();
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  // ── Stroke the curve line ─────────────────────────────────
+  ctx.beginPath();
+  ctx.lineWidth = isGray ? lineWidth * 0.85 : lineWidth;
+  ctx.strokeStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${alpha})`;
+
+  if (!isGray) {
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = `rgba(${tint[0]},${tint[1]},${tint[2]},0.55)`;
+  }
+
+  for (let i = 0; i < pts.length; i++) {
+    if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+    else ctx.lineTo(pts[i][0], pts[i][1]);
+  }
   ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // ── Thin bright highlight on the processed line ───────────
+  if (!isGray) {
+    ctx.beginPath();
+    ctx.lineWidth = lineWidth * 0.38;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.22})`;
+    for (let i = 0; i < pts.length; i++) {
+      if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+      else ctx.lineTo(pts[i][0], pts[i][1]);
+    }
+    ctx.stroke();
+  }
 }
 
 function computeSpectrumCurve(freqData, points = 160) {
@@ -544,34 +607,65 @@ function computeSpectrumCurve(freqData, points = 160) {
 
 function drawWaveformLayer(ctx, w, h, history, mood, waveformOnly = false, alpha = 0.84, lineWidthOverride = null) {
   const tint = MOOD_TINT[mood] || MOOD_TINT.chill;
-  const yMid = waveformOnly ? h * 0.52 : h * 0.83;
-  const amp = waveformOnly ? h * 0.24 : h * 0.12;
+  const isGray = mood === '__gray__';
+  const yMid = waveformOnly ? h * 0.52 : h * 0.78;
+  const amp = waveformOnly ? h * 0.24 : h * 0.14;
 
   const smoothed = movingAverage(history, 5);
+  if (smoothed.length === 0) return;
 
-  ctx.beginPath();
-  ctx.lineWidth = lineWidthOverride ?? (waveformOnly ? 2.2 : 1.6);
-  ctx.strokeStyle = rgba(tint, alpha);
-  ctx.shadowBlur = waveformOnly ? 16 : 10;
-  ctx.shadowColor = rgba(tint, waveformOnly ? 0.35 : 0.25);
-
-  for (let i = 0; i < smoothed.length; i++) {
-    const x = (i / Math.max(1, smoothed.length - 1)) * w;
-    const y = yMid - smoothed[i] * amp;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // subtle baseline
+  // ── Subtle baseline ──────────────────────────────────────
   ctx.beginPath();
   ctx.lineWidth = 1;
-  ctx.strokeStyle = waveformOnly ? rgba(tint, 0.32) : 'rgba(148,163,184,0.25)';
+  ctx.strokeStyle = isGray ? 'rgba(148,163,184,0.14)' : `rgba(${tint[0]},${tint[1]},${tint[2]},0.18)`;
   ctx.moveTo(0, yMid);
   ctx.lineTo(w, yMid);
   ctx.stroke();
+
+  // Build path points
+  const pts = smoothed.map((v, i) => [
+    (i / Math.max(1, smoothed.length - 1)) * w,
+    yMid - v * amp,
+  ]);
+
+  // ── Filled band between waveform and midline ─────────────
+  if (!isGray) {
+    const fillGrad = ctx.createLinearGradient(0, yMid - amp, 0, yMid + amp);
+    fillGrad.addColorStop(0,   `rgba(${tint[0]},${tint[1]},${tint[2]},${0.22 * alpha})`);
+    fillGrad.addColorStop(0.5, `rgba(${tint[0]},${tint[1]},${tint[2]},${0.06 * alpha})`);
+    fillGrad.addColorStop(1,   `rgba(${tint[0]},${tint[1]},${tint[2]},${0.22 * alpha})`);
+
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+      else ctx.lineTo(pts[i][0], pts[i][1]);
+    }
+    ctx.lineTo(pts[pts.length - 1][0], yMid);
+    for (let i = pts.length - 1; i >= 0; i--) {
+      ctx.lineTo(pts[i][0], yMid);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
+  }
+
+  // ── Stroke the waveform ──────────────────────────────────
+  const lw = lineWidthOverride ?? (waveformOnly ? 2.2 : (isGray ? 1.1 : 1.7));
+  ctx.beginPath();
+  ctx.lineWidth = lw;
+  ctx.strokeStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${alpha})`;
+
+  if (!isGray) {
+    ctx.shadowBlur = waveformOnly ? 16 : 8;
+    ctx.shadowColor = `rgba(${tint[0]},${tint[1]},${tint[2]},${waveformOnly ? 0.45 : 0.3})`;
+  }
+
+  for (let i = 0; i < pts.length; i++) {
+    if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+    else ctx.lineTo(pts[i][0], pts[i][1]);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
 function drawShimmer(ctx, w, h, shimmer) {

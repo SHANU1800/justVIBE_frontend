@@ -423,28 +423,65 @@ function AppContent() {
         )}
 
         {activePage === 'player' && (
-          <div className="relative border-b border-white/[0.06] shrink-0">
-            {/* Mode toggle — floating overlay top-right */}
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-              {[
-                { id: 'frequency', label: 'Freq' },
-                { id: 'bars',      label: 'Bars' },
-                { id: 'waveform',  label: 'Wave' },
-              ].map(m => (
-                <button
-                  key={m.id}
-                  type="button"
-                  className={`h-6 px-2.5 rounded text-[9px] font-bold tracking-wide transition-all backdrop-blur-sm border ${
-                    topGraphMode === m.id
-                      ? 'bg-violet-500/55 text-violet-100 border-violet-400/50 shadow-[0_0_10px_rgba(155,114,248,0.4)]'
-                      : 'bg-black/40 text-slate-400 border-white/10 hover:text-slate-200 hover:border-white/20'
-                  }`}
-                  onClick={() => setTopGraphMode(m.id)}
-                >{m.label}</button>
-              ))}
+          <div
+            className="relative shrink-0 mx-3 md:mx-4 mb-1 mt-1 rounded-2xl overflow-hidden"
+            style={{
+              background: 'rgba(6,8,22,0.75)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: '0 4px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            {/* ── Legend bar ───────────────────────────────────── */}
+            <div className="flex items-center justify-between px-3 pt-2 pb-0.5 gap-2">
+              {/* Signal labels */}
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium shrink-0">
+                  <span className="h-2 w-5 rounded-sm" style={{ background: 'rgba(148,163,184,0.55)' }} />
+                  Original
+                </span>
+                <span
+                  className="flex items-center gap-1.5 text-[10px] font-semibold shrink-0"
+                  style={{ color: 'rgba(56,189,248,0.9)' }}
+                >
+                  <span
+                    className="h-2 w-5 rounded-sm"
+                    style={{ background: 'rgba(56,189,248,0.7)', boxShadow: '0 0 6px rgba(56,189,248,0.55)' }}
+                  />
+                  {listeningMode === 'Normal' ? 'Processed' : listeningMode}
+                </span>
+                <span
+                  className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[9px] font-bold tracking-wider text-slate-500 uppercase"
+                  style={{ background: 'rgba(255,255,255,0.03)' }}
+                >
+                  VS
+                </span>
+              </div>
+
+              {/* Mode toggle pills */}
+              <div className="flex items-center gap-1 shrink-0">
+                {[
+                  { id: 'frequency', label: 'Freq' },
+                  { id: 'bars',      label: 'Bars' },
+                  { id: 'waveform',  label: 'Wave' },
+                ].map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`h-5 px-2 rounded-full text-[9px] font-bold tracking-wide transition-all border ${
+                      topGraphMode === m.id
+                        ? 'bg-violet-500/50 text-violet-100 border-violet-400/50 shadow-[0_0_8px_rgba(139,92,246,0.35)]'
+                        : 'bg-transparent text-slate-500 border-white/10 hover:text-slate-300 hover:border-white/20'
+                    }`}
+                    onClick={() => setTopGraphMode(m.id)}
+                  >{m.label}</button>
+                ))}
+              </div>
             </div>
+
+            {/* ── Canvas ───────────────────────────────────────── */}
             <AudioVisualizer
-              height={112}
+              height={108}
               showControls={false}
               userMood={userMood}
               waveformOnly={false}
@@ -455,7 +492,7 @@ function AppContent() {
               cleanFrequencyOnly={false}
               minimal={true}
               tintKey="__theme__"
-              showFrequencyGuides={false}
+              showFrequencyGuides={topGraphMode === 'frequency'}
             />
           </div>
         )}
