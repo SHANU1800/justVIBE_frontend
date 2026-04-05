@@ -233,6 +233,8 @@ export function PlayerProvider({ children }) {
   const stereoSettingsRef = useRef({ ...DEFAULT_STEREO_SETTINGS });
   const reverbSettingsRef = useRef({ ...DEFAULT_REVERB_SETTINGS });
   const normSettingsRef = useRef({ ...DEFAULT_NORM_SETTINGS });
+  const intensityRef = useRef(100);   // 0-200, percentage multiplier on EQ gains
+  const prevDriveRef = useRef(0);
 
   const currentTrack = state.playlist[state.currentTrackIndex] || null;
 
@@ -389,72 +391,109 @@ export function PlayerProvider({ children }) {
     if (!fx.lowShelf || !fx.peaking || !fx.highShelf || !fx.wetGain || !fx.dryGain) return;
 
     const now = fx.ctx.currentTime;
-    const ramp = 0.35;
+    const ramp = 0.55; // longer ramp masks parameter-change clicks better
+
+    // Intensity multiplier (0–200%, default 100%)
+    const intensity = clamp((intensityRef.current ?? 100) / 100, 0, 2);
 
     const rawDry = clamp(preset.dry + modeAdjust.dryBias, 0.0, 1.2);
-    // Keep wet channel conservative to reduce shimmer/hiss artifacts.
     const rawWet = clamp(preset.wet + modeAdjust.wetBias, 0.0, 0.72);
     const totalMix = rawDry + rawWet;
     const mixScale = totalMix > 1.0 ? (1.0 / totalMix) : 1.0;
     const targetDry = rawDry * mixScale;
     const targetWet = rawWet * mixScale;
 
-    // Keep user EQ influence moderate to avoid harsh/noisy highs.
     const userEqInfluence = 0.6;
-    const targetLow = clamp(preset.lowShelf.gain + modeAdjust.low + (userMix.low * userEqInfluence), -10, 10);
-    const targetMid = clamp(preset.peaking.gain + modeAdjust.mid + (userMix.mid * userEqInfluence), -10, 10);
-    const targetHigh = clamp(preset.highShelf.gain + modeAdjust.high + (userMix.high * userEqInfluence), -10, 10);
+    // Scale EQ gains by intensity — at 0% the curve is completely flat
+    const rawLow  = (preset.lowShelf.gain  + modeAdjust.low  + (userMix.low  * userEqInfluence)) * intensity;
+    const rawMid  = (preset.peaking.gain   + modeAdjust.mid  + (userMix.mid  * userEqInfluence)) * intensity;
+    const rawHigh = (preset.highShelf.gain + modeAdjust.high + (userMix.high * userEqInfluence)) * intensity;
+    const targetLow  = clamp(rawLow,  -12, 12);
+    const targetMid  = clamp(rawMid,  -12, 12);
+    const targetHigh = clamp(rawHigh, -12, 12);
+
     const maxBoost = Math.max(0, targetLow, targetMid, targetHigh);
     const headroom = clamp(1 - maxBoost * 0.035, 0.68, 1);
     const safeDry = targetDry * headroom;
     const safeWet = targetWet * headroom;
-    const targetLowFreq = clamp(preset.lowShelf.freq * (modeTone.lowFreqMul ?? 1), 60, 1200);
-    const targetMidFreq = clamp(preset.peaking.freq * (modeTone.midFreqMul ?? 1), 250, 6000);
-    const targetHighFreq = clamp(preset.highShelf.freq * (modeTone.highFreqMul ?? 1), 1800, 12000);
-    const targetQ = clamp(preset.peaking.q * (modeTone.peakQMul ?? 1), 0.35, 2.0);
-    // Cap top-end to reduce high-frequency hash on bright tracks.
-    const targetLowpass = clamp(modeTone.lowpassHz ?? 16500, 1200, 16500);
-    const minHighpass = subBassFilterRef.current ? 30 : 20;
-    const targetHighpass = clamp(Math.max(modeTone.highpassHz ?? 20, minHighpass), 20, 350);
-    const targetDrive = clamp(modeTexture.drive ?? 0, 0, 1);
-    const targetHiss = clamp(modeTexture.hiss ?? 0, 0, 0.0012);
-    const targetCrackle = clamp(modeTexture.crackle ?? 0, 0, 0.0009);
-    const targetWow = clamp(modeTexture.wowDepth ?? 0, 0, 620);
-    const targetFlutter = clamp(modeTexture.flutterDepth ?? 0, 0, 210);
 
-    // Cancel all pending events and snapshot the current value before scheduling new ramps.
-    // Calling setValueAtTime after cancelScheduledValues anchors the starting point so the
-    // ramp interpolates from the live value instead of an undefined state, preventing clicks.
+    const targetLowFreq  = clamp(preset.lowShelf.freq  * (modeTone.lowFreqMul  ?? 1), 60, 1200);
+    const targetMidFreq  = clamp(preset.peaking.freq   * (modeTone.midFreqMul  ?? 1), 250, 6000);
+    const targetHighFreq = clamp(preset.highShelf.freq * (modeTone.highFreqMul ?? 1), 1800, 12000);
+    const targetQ        = clamp(preset.peaking.q      * (modeTone.peakQMul    ?? 1), 0.35, 2.0);
+    const targetLowpass  = clamp(modeTone.lowpassHz  ?? 16500, 1200, 16500);
+    const minHighpass    = subBassFilterRef.current ? 30 : 20;
+    const targetHighpass = clamp(Math.max(modeTone.highpassHz ?? 20, minHighpass), 20, 350);
+    const targetDrive    = clamp(modeTexture.drive   ?? 0, 0, 1);
+    const targetHiss     = clamp(modeTexture.hiss    ?? 0, 0, 0.0012);
+    const targetCrackle  = clamp(modeTexture.crackle ?? 0, 0, 0.0009);
+    const targetWow      = clamp(modeTexture.wowDepth    ?? 0, 0, 620);
+    const targetFlutter  = clamp(modeTexture.flutterDepth ?? 0, 0, 210);
+
+    // ── Brief master dip (≈10%) masks any click at the start of transitions ──
+    // Inaudible as a level change but prevents audible discontinuities.
+    {
+      const g = fx.mixBus.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(0.90, now + 0.022);
+      g.linearRampToValueAtTime(1.0,  now + 0.18);
+    }
+
+    // snapAndRamp: cancel + anchor current value + ramp (for gain/Q params)
     const snapAndRamp = (param, target) => {
       param.cancelScheduledValues(now);
       param.setValueAtTime(param.value, now);
       param.linearRampToValueAtTime(target, now + ramp);
     };
 
+    // snapAndRampExp: for frequency params — exponential sounds smoother
+    // (frequency is perceptually logarithmic; avoids harsh audible sweeps)
+    const snapAndRampExp = (param, target) => {
+      const safeTarget = Math.max(target, 1);
+      param.cancelScheduledValues(now);
+      const curr = Math.max(param.value, 1);
+      param.setValueAtTime(curr, now);
+      param.exponentialRampToValueAtTime(safeTarget, now + ramp);
+    };
+
     snapAndRamp(fx.dryGain.gain, safeDry);
     snapAndRamp(fx.wetGain.gain, safeWet);
 
-    snapAndRamp(fx.lowShelf.frequency, targetLowFreq);
+    snapAndRampExp(fx.lowShelf.frequency, targetLowFreq);
     snapAndRamp(fx.lowShelf.gain, targetLow);
 
-    snapAndRamp(fx.peaking.frequency, targetMidFreq);
+    snapAndRampExp(fx.peaking.frequency, targetMidFreq);
     snapAndRamp(fx.peaking.Q, targetQ);
     snapAndRamp(fx.peaking.gain, targetMid);
 
-    snapAndRamp(fx.highShelf.frequency, targetHighFreq);
+    snapAndRampExp(fx.highShelf.frequency, targetHighFreq);
     snapAndRamp(fx.highShelf.gain, targetHigh);
 
-    if (fx.modeLowpass) snapAndRamp(fx.modeLowpass.frequency, targetLowpass);
-    if (fx.modeHighpass) snapAndRamp(fx.modeHighpass.frequency, targetHighpass);
+    if (fx.modeLowpass)  snapAndRampExp(fx.modeLowpass.frequency,  targetLowpass);
+    if (fx.modeHighpass) snapAndRampExp(fx.modeHighpass.frequency, targetHighpass);
 
-    if (fx.modeDrive) {
-      fx.modeDrive.curve = makeDriveCurve(targetDrive);
+    // ── WaveShaper drive: gate via driveGain to prevent curve-swap click ──
+    const prevDrive = prevDriveRef.current ?? 0;
+    const driveDelta = Math.abs(targetDrive - prevDrive);
+    if (fx.modeDrive && driveDelta > 0.02) {
+      const gp = fx.driveGain.gain;
+      gp.cancelScheduledValues(now);
+      gp.setValueAtTime(gp.value, now);
+      gp.linearRampToValueAtTime(0.001, now + 0.010);  // silence in 10 ms
+      gp.setValueAtTime(0.001, now + 0.016);            // hold 6 ms
+      gp.linearRampToValueAtTime(1 + targetDrive * 1.4, now + ramp);
+      const capturedDrive = targetDrive;
+      const capturedNode  = fx.modeDrive;
+      setTimeout(() => { capturedNode.curve = makeDriveCurve(capturedDrive); }, 14);
+      prevDriveRef.current = targetDrive;
+    } else {
+      if (fx.driveGain) snapAndRamp(fx.driveGain.gain, 1 + targetDrive * 1.4);
     }
-    if (fx.driveGain) snapAndRamp(fx.driveGain.gain, 1 + targetDrive * 1.4);
     if (fx.postDriveGain) snapAndRamp(fx.postDriveGain.gain, 1 / (1 + targetDrive * 1.2));
-    if (fx.hissGain) snapAndRamp(fx.hissGain.gain, targetHiss);
+    if (fx.hissGain)    snapAndRamp(fx.hissGain.gain,    targetHiss);
     if (fx.crackleGain) snapAndRamp(fx.crackleGain.gain, targetCrackle);
-    if (fx.wowDepth) snapAndRamp(fx.wowDepth.gain, targetWow);
+    if (fx.wowDepth)    snapAndRamp(fx.wowDepth.gain,    targetWow);
     if (fx.flutterDepth) snapAndRamp(fx.flutterDepth.gain, targetFlutter);
   }, [ensureFxGraph]);
 
@@ -573,10 +612,28 @@ export function PlayerProvider({ children }) {
 
       const elapsedMs = Date.now() - (fx.lastReverbUpdateTs || 0);
       // Avoid frequent random IR swaps while playing; they can sound like crackle.
-      if (fx.lastReverbDecay == null || (Math.abs(decay - fx.lastReverbDecay) > 0.35 && elapsedMs > 1500)) {
+      if (fx.lastReverbDecay == null || (Math.abs(decay - fx.lastReverbDecay) > 0.35 && elapsedMs > 2000)) {
         fx.lastReverbDecay = decay;
         fx.lastReverbUpdateTs = Date.now();
-        fx.reverbConvolver.buffer = buildImpulseResponse(fx.ctx, decay);
+        // Dip the wet gain before swapping the buffer to prevent the swap click,
+        // then restore after the buffer has been assigned.
+        const wetP = fx.reverbWetGain.gain;
+        const ctxNow = fx.ctx.currentTime;
+        wetP.cancelScheduledValues(ctxNow);
+        wetP.setValueAtTime(wetP.value, ctxNow);
+        wetP.linearRampToValueAtTime(0.0001, ctxNow + 0.018);
+        const capturedCtx = fx.ctx;
+        const capturedDecay = decay;
+        const capturedConvolver = fx.reverbConvolver;
+        const targetWet = amount * 0.35;
+        setTimeout(() => {
+          capturedConvolver.buffer = buildImpulseResponse(capturedCtx, capturedDecay);
+          const t = capturedCtx.currentTime;
+          wetP.cancelScheduledValues(t);
+          wetP.setValueAtTime(0.0001, t);
+          wetP.linearRampToValueAtTime(targetWet, t + 0.06);
+        }, 22);
+        return; // wet gain already handled above
       }
     }
 
@@ -587,8 +644,8 @@ export function PlayerProvider({ children }) {
       const targetRatio = normEnabled ? 3.2 : 1;
       const makeup = normEnabled ? clamp(Math.pow(10, ((-target - 10) / 20)), 1, 1.9) : 1;
 
-      // Use setTargetAtTime for compressor params — they respond more cleanly
-      // to exponential approach than to linear ramps, which can cause pops.
+      // Use setTargetAtTime for ALL compressor params — avoids clicks from
+      // direct .value assignment and linear ramps that can cause pops.
       const tc = ramp / 3;
       fx.normCompressor.threshold.cancelScheduledValues(now);
       fx.normCompressor.threshold.setValueAtTime(fx.normCompressor.threshold.value, now);
@@ -598,11 +655,19 @@ export function PlayerProvider({ children }) {
       fx.normCompressor.ratio.setValueAtTime(fx.normCompressor.ratio.value, now);
       fx.normCompressor.ratio.setTargetAtTime(targetRatio, now, tc);
 
-      snapAndRampE(fx.normMakeupGain.gain, makeup);
+      fx.normCompressor.knee.cancelScheduledValues(now);
+      fx.normCompressor.knee.setValueAtTime(fx.normCompressor.knee.value, now);
+      fx.normCompressor.knee.setTargetAtTime(16, now, tc);
 
-      fx.normCompressor.knee.value = 16;
-      fx.normCompressor.attack.value = 0.012;
-      fx.normCompressor.release.value = normEnabled ? 0.25 : 0.2;
+      fx.normCompressor.attack.cancelScheduledValues(now);
+      fx.normCompressor.attack.setValueAtTime(fx.normCompressor.attack.value, now);
+      fx.normCompressor.attack.setTargetAtTime(0.012, now, tc);
+
+      fx.normCompressor.release.cancelScheduledValues(now);
+      fx.normCompressor.release.setValueAtTime(fx.normCompressor.release.value, now);
+      fx.normCompressor.release.setTargetAtTime(normEnabled ? 0.25 : 0.2, now, tc);
+
+      snapAndRampE(fx.normMakeupGain.gain, makeup);
     }
   }, [ensureFxGraph]);
 
@@ -637,6 +702,11 @@ export function PlayerProvider({ children }) {
     };
     applyEnhancementNodes();
   }, [applyEnhancementNodes]);
+
+  const setIntensity = useCallback((pct) => {
+    intensityRef.current = clamp(Number(pct) || 100, 0, 200);
+    applyCompositePreset(currentMoodRef.current || 'chill');
+  }, [applyCompositePreset]);
 
   useEffect(() => {
     // Claim media element source early so visualizer components don't steal ownership.
@@ -858,6 +928,7 @@ export function PlayerProvider({ children }) {
     setReverbSettings,
     setNormalizationSettings,
     setPlaybackRate,
+    setIntensity,
     getSharedAnalyserNode,
     getAnalyserNode,
     dispatch,

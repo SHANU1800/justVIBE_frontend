@@ -17,6 +17,7 @@ export default function Player({
     playlist, currentTrack, currentTrackIndex, isPlaying,
     addFiles, dispatch, togglePlay, play, pause, applyListeningMode,
     setPlaybackRate, setBassSettings, setReverbSettings, setStereoSettings,
+    setIntensity,
   } = usePlayer();
   const { preprocessCurrentTrack } = useRealtimeGenre();
   const fileRef = useRef(null);
@@ -25,6 +26,7 @@ export default function Player({
   const [modeHint, setModeHint] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [speedValue, setSpeedValue] = useState(Number(modeRequestOptions?.target_speed ?? 1));
+  const [intensityPct, setIntensityPct] = useState(100);
   const [profileStrength, setProfileStrength] = useState(Math.round((Number(modeRequestOptions?.profile_strength ?? 1)) * 100));
   const [warmthDb, setWarmthDb] = useState(Number(modeRequestOptions?.bass_boost_db ?? 0));
   const [reverbAmountPct, setReverbAmountPct] = useState(Math.round((Number(modeRequestOptions?.reverb_amount ?? 0.2)) * 100));
@@ -115,6 +117,10 @@ export default function Player({
   }, [setPlaybackRate, speedValue]);
 
   useEffect(() => {
+    setIntensity?.(intensityPct);
+  }, [setIntensity, intensityPct]);
+
+  useEffect(() => {
     setBassSettings?.({
       boost: warmthDb,
       freq: warmthDb >= 0 ? 92 : 122,
@@ -168,6 +174,7 @@ export default function Player({
   const applyQuickProfile = useCallback((profile) => {
     if (profile === 'studio') {
       setProfileStrength(95);
+      setIntensityPct(100);
       setWarmthDb(1.5);
       setReverbAmountPct(12);
       setStereoWidthPct(105);
@@ -176,18 +183,20 @@ export default function Player({
     }
     if (profile === 'night') {
       setProfileStrength(110);
+      setIntensityPct(120);
       setWarmthDb(3.5);
       setReverbAmountPct(24);
       setStereoWidthPct(96);
-      setSpeedValue(0.92);
+      setSpeedValue(1);
       return;
     }
     if (profile === 'dream') {
       setProfileStrength(120);
+      setIntensityPct(130);
       setWarmthDb(2.5);
       setReverbAmountPct(36);
       setStereoWidthPct(116);
-      setSpeedValue(0.88);
+      setSpeedValue(0.75);
     }
   }, []);
 
@@ -385,7 +394,58 @@ export default function Player({
                 <div className="text-[11px] text-slate-400 text-center -mt-2">{effectiveModeHint}</div>
               )}
 
-              <div className="w-full rounded-xl border border-white/10 bg-slate-900/35 p-3">
+              {/* ── Always-visible quick controls ── */}
+              <div className="w-full space-y-2.5 rounded-xl border border-white/[0.08] bg-slate-900/40 p-3 text-[11px] text-slate-300">
+                {/* Speed */}
+                <div className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 text-slate-400 font-medium">Speed</span>
+                  <div className="flex flex-1 gap-1">
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`flex-1 rounded-md border py-1 text-[10px] font-semibold transition-all ${Math.abs(speedValue - s) < 0.01 ? 'border-violet-400/60 bg-violet-500/25 text-violet-100 shadow-[0_0_8px_rgba(139,92,246,0.3)]' : 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]'}`}
+                        onClick={() => setSpeedValue(s)}
+                      >
+                        {s}×
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Intensity — scales EQ strength 0→150% */}
+                <div className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 text-slate-400 font-medium">Intensity</span>
+                  <input
+                    type="range" min="0" max="150" step="1" value={intensityPct}
+                    onChange={(e) => setIntensityPct(parseInt(e.target.value, 10))}
+                    className="flex-1 accent-violet-400"
+                  />
+                  <span className="w-9 text-right text-slate-400">{intensityPct}%</span>
+                </div>
+                {/* Warmth */}
+                <div className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 text-slate-400 font-medium">Warmth</span>
+                  <input
+                    type="range" min="-6" max="6" step="0.1" value={warmthDb}
+                    onChange={(e) => setWarmthDb(parseFloat(e.target.value))}
+                    className="flex-1 accent-amber-400"
+                  />
+                  <span className="w-9 text-right text-slate-400">{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)}</span>
+                </div>
+                {/* Reverb */}
+                <div className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 text-slate-400 font-medium">Space</span>
+                  <input
+                    type="range" min="0" max="60" step="1" value={reverbAmountPct}
+                    onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))}
+                    className="flex-1 accent-cyan-400"
+                  />
+                  <span className="w-9 text-right text-slate-400">{reverbAmountPct}%</span>
+                </div>
+              </div>
+
+              {/* ── Collapsible advanced panel ── */}
+              <div className="w-full rounded-xl border border-white/[0.06] bg-slate-900/25 p-3">
                 <button
                   type="button"
                   className="w-full flex items-center justify-between text-xs font-semibold text-slate-200"
@@ -393,9 +453,9 @@ export default function Player({
                 >
                   <span className="inline-flex items-center gap-2">
                     <Icon name="settings" className="h-3.5 w-3.5" />
-                    Advanced Player Options
+                    More Options
                   </span>
-                  <span className="text-[10px] text-slate-400">{showAdvanced ? 'Hide' : 'Show'}</span>
+                  <span className="text-[10px] text-slate-400">{showAdvanced ? '▲ Hide' : '▼ Show'}</span>
                 </button>
 
                 {showAdvanced && (
@@ -408,28 +468,13 @@ export default function Player({
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1"><span>Playback Speed</span><span>{speedValue.toFixed(2)}×</span></div>
-                      <input type="range" min="0.75" max="1.25" step="0.01" value={speedValue} onChange={(e) => setSpeedValue(parseFloat(e.target.value))} className="w-full accent-violet-400" />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1"><span>AI Profile Strength</span><span>{profileStrength}%</span></div>
-                      <input type="range" min="50" max="150" step="1" value={profileStrength} onChange={(e) => setProfileStrength(parseInt(e.target.value, 10))} className="w-full accent-violet-400" />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1"><span>Warmth (Bass)</span><span>{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)} dB</span></div>
-                      <input type="range" min="-6" max="6" step="0.1" value={warmthDb} onChange={(e) => setWarmthDb(parseFloat(e.target.value))} className="w-full accent-amber-400" />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1"><span>Reverb Space</span><span>{reverbAmountPct}%</span></div>
-                      <input type="range" min="0" max="60" step="1" value={reverbAmountPct} onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))} className="w-full accent-cyan-400" />
-                    </div>
-
-                    <div>
                       <div className="flex items-center justify-between mb-1"><span>Stereo Width</span><span>{stereoWidthPct}%</span></div>
                       <input type="range" min="70" max="140" step="1" value={stereoWidthPct} onChange={(e) => setStereoWidthPct(parseInt(e.target.value, 10))} className="w-full accent-fuchsia-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>AI Strength</span><span>{profileStrength}%</span></div>
+                      <input type="range" min="50" max="150" step="1" value={profileStrength} onChange={(e) => setProfileStrength(parseInt(e.target.value, 10))} className="w-full accent-violet-400" />
                     </div>
 
                     <div className="pt-1 border-t border-white/10">
