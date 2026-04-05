@@ -267,10 +267,16 @@ export async function analyzeSegmentByPath(filePath, timeOffset) {
 
 // ── Listening Mode Recommendation ─────────────────────────────
 
-export async function getModeRecommendationFromFile(file, mode) {
+export async function getModeRecommendationFromFile(file, mode, options = null) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('mode', mode);
+  if (options && typeof options === 'object') {
+    Object.entries(options).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      formData.append(key, String(value));
+    });
+  }
   return request('/mode/recommend', {
     method: 'POST',
     body: formData,

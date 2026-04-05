@@ -48,6 +48,13 @@ function AppContent() {
   const [loopB, setLoopB] = useState(null);
   const [listeningMode, setListeningMode] = useState('Normal');
   const [modeHint, setModeHint] = useState('');
+  const [modeRequestOptions, setModeRequestOptions] = useState({
+    profile_strength: 1,
+    target_speed: 1,
+    reverb_amount: 0.2,
+    stereo_width: 1,
+    bass_boost_db: 0,
+  });
   const [topGraphMode, setTopGraphMode] = useState('frequency');
   const lastBackendCheckRef = useRef(0);
 
@@ -63,7 +70,12 @@ function AppContent() {
     preprocessCurrentTrack, backendError, clearBackendError,
   } = useRealtimeGenre();
 
-  const handleListeningModeChange = useCallback(async (mode) => {
+  const handleListeningModeChange = useCallback(async (mode, options = null) => {
+    const nextOptions = options || modeRequestOptions;
+    if (options) {
+      setModeRequestOptions(options);
+    }
+
     setListeningMode(mode);
     applyListeningMode(mode);
 
@@ -78,7 +90,7 @@ function AppContent() {
 
     setModeHint('Applying model profile...');
     try {
-      const result = await getModeRecommendationFromFile(currentTrack.file, mode);
+      const result = await getModeRecommendationFromFile(currentTrack.file, mode, nextOptions);
       if (result?.status === 'ok') {
         applyListeningMode(mode, result);
         setModeHint(`${mode} active (${result.source || 'fallback'})`);
@@ -89,7 +101,7 @@ function AppContent() {
       const reason = error?.message ? ` — ${error.message}` : '';
       setModeHint(`${mode} active (fallback${reason})`);
     }
-  }, [applyListeningMode, currentTrack, preprocessCurrentTrack]);
+  }, [applyListeningMode, currentTrack, preprocessCurrentTrack, modeRequestOptions]);
 
   useEffect(() => {
     if (!currentTrack?.file || listeningMode === 'Normal') return;
@@ -99,7 +111,7 @@ function AppContent() {
       preprocessCurrentTrack(currentTrack);
     }
 
-    getModeRecommendationFromFile(currentTrack.file, listeningMode)
+    getModeRecommendationFromFile(currentTrack.file, listeningMode, modeRequestOptions)
       .then((result) => {
         if (result?.status === 'ok') {
           applyListeningMode(listeningMode, result);
@@ -109,7 +121,7 @@ function AppContent() {
         const reason = error?.message ? ` — ${error.message}` : '';
         setModeHint(`${listeningMode} active (fallback${reason})`);
       });
-  }, [currentTrack, listeningMode, applyListeningMode, preprocessCurrentTrack]);
+  }, [currentTrack, listeningMode, applyListeningMode, preprocessCurrentTrack, modeRequestOptions]);
 
   // A/B loop monitoring
   const loopRef = useRef({ A: null, B: null });
@@ -202,6 +214,8 @@ function AppContent() {
               listeningMode={listeningMode}
               onListeningModeChange={handleListeningModeChange}
               modeHint={modeHint}
+              modeRequestOptions={modeRequestOptions}
+              onModeRequestOptionsChange={setModeRequestOptions}
             />
             <Equalizer
               listeningMode={listeningMode}

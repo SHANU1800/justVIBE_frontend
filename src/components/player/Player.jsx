@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import { usePlayer } from '../../state/PlayerContext';
 import { useRealtimeGenre } from '../../state/RealtimeGenreContext';
 import { getModeRecommendationFromFile } from '../../services/mlApi';
@@ -10,18 +10,38 @@ export default function Player({
   listeningMode: controlledListeningMode,
   onListeningModeChange,
   modeHint: controlledModeHint,
+  modeRequestOptions,
+  onModeRequestOptionsChange,
 }) {
   const {
     playlist, currentTrack, currentTrackIndex, isPlaying,
-    addFiles, dispatch, togglePlay, play, pause, applyListeningMode
+    addFiles, dispatch, togglePlay, play, pause, applyListeningMode,
+    setPlaybackRate, setBassSettings, setReverbSettings, setStereoSettings,
   } = usePlayer();
   const { preprocessCurrentTrack } = useRealtimeGenre();
   const fileRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [listeningMode, setListeningMode] = useState('Normal');
   const [modeHint, setModeHint] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(true);
+  const [speedValue, setSpeedValue] = useState(Number(modeRequestOptions?.target_speed ?? 1));
+  const [profileStrength, setProfileStrength] = useState(Math.round((Number(modeRequestOptions?.profile_strength ?? 1)) * 100));
+  const [warmthDb, setWarmthDb] = useState(Number(modeRequestOptions?.bass_boost_db ?? 0));
+  const [reverbAmountPct, setReverbAmountPct] = useState(Math.round((Number(modeRequestOptions?.reverb_amount ?? 0.2)) * 100));
+  const [stereoWidthPct, setStereoWidthPct] = useState(Math.round((Number(modeRequestOptions?.stereo_width ?? 1)) * 100));
+  const [sleepMinutes, setSleepMinutes] = useState(0);
+  const [sleepRemainingSec, setSleepRemainingSec] = useState(0);
+  const sleepDeadlineRef = useRef(null);
   const effectiveListeningMode = controlledListeningMode ?? listeningMode;
   const effectiveModeHint = controlledModeHint ?? modeHint;
+
+  const currentModeOptions = useMemo(() => ({
+    profile_strength: Number((profileStrength / 100).toFixed(2)),
+    target_speed: Number(speedValue.toFixed(2)),
+    reverb_amount: Number((reverbAmountPct / 100).toFixed(2)),
+    stereo_width: Number((stereoWidthPct / 100).toFixed(2)),
+    bass_boost_db: Number(warmthDb.toFixed(1)),
+  }), [profileStrength, speedValue, reverbAmountPct, stereoWidthPct, warmthDb]);
 
   const PLAYER_MODES = [
     { value: 'Normal', label: 'Normal' },
@@ -32,7 +52,7 @@ export default function Player({
 
   const handleListeningModeChange = useCallback(async (mode) => {
     if (onListeningModeChange) {
-      onListeningModeChange(mode);
+      onListeningModeChange(mode, currentModeOptions);
       return;
     }
 
@@ -48,7 +68,7 @@ export default function Player({
 
     setModeHint('Applying model profile...');
     try {
-      const result = await getModeRecommendationFromFile(currentTrack.file, mode);
+      const result = await getModeRecommendationFromFile(currentTrack.file, mode, currentModeOptions);
       if (result?.status === 'ok') {
         applyListeningMode(mode, result);
         const source = result.source || 'fallback';
@@ -59,7 +79,7 @@ export default function Player({
     } catch {
       setModeHint(`${mode} active (fallback)`);
     }
-  }, [onListeningModeChange, applyListeningMode, currentTrack]);
+  }, [onListeningModeChange, applyListeningMode, currentTrack, currentModeOptions]);
 
   const handleFiles = useCallback((fileList) => {
     const audioFiles = Array.from(fileList).filter(f =>
@@ -79,14 +99,95 @@ export default function Player({
 
     applyListeningMode(effectiveListeningMode);
 
-    getModeRecommendationFromFile(currentTrack.file, effectiveListeningMode)
+    getModeRecommendationFromFile(currentTrack.file, effectiveListeningMode, currentModeOptions)
       .then((result) => {
         if (result?.status === 'ok') {
           applyListeningMode(effectiveListeningMode, result);
         }
       })
       .catch(() => {});
-  }, [currentTrack, effectiveListeningMode, applyListeningMode]);
+  }, [currentTrack, effectiveListeningMode, applyListeningMode, currentModeOptions]);
+
+  useEffect(() => {
+    setPlaybackRate?.(speedValue);
+  }, [setPlaybackRate, speedValue]);
+
+  useEffect(() => {
+    setBassSettings?.({
+      boost: warmthDb,
+      freq: warmthDb >= 0 ? 92 : 122,
+    });
+  }, [setBassSettings, warmthDb]);
+
+  useEffect(() => {
+    setReverbSettings?.({
+      amount: reverbAmountPct,
+      decay: 1.6 + (reverbAmountPct / 100) * 4.2,
+    });
+  }, [setReverbSettings, reverbAmountPct]);
+
+  useEffect(() => {
+    setStereoSettings?.({
+      width: stereoWidthPct,
+      balance: 0,
+    });
+  }, [setStereoSettings, stereoWidthPct]);
+
+  useEffect(() => {
+    onModeRequestOptionsChange?.(currentModeOptions);
+  }, [onModeRequestOptionsChange, currentModeOptions]);
+
+  useEffect(() => {
+    if (!sleepMinutes || sleepMinutes <= 0) {
+      sleepDeadlineRef.current = null;
+      setSleepRemainingSec(0);
+      return;
+    }
+
+    const deadline = Date.now() + sleepMinutes * 60 * 1000;
+    sleepDeadlineRef.current = deadline;
+    setSleepRemainingSec(sleepMinutes * 60);
+
+    const timer = setInterval(() => {
+      const remainingMs = (sleepDeadlineRef.current ?? 0) - Date.now();
+      if (remainingMs <= 0) {
+        setSleepRemainingSec(0);
+        setSleepMinutes(0);
+        sleepDeadlineRef.current = null;
+        pause();
+        return;
+      }
+      setSleepRemainingSec(Math.ceil(remainingMs / 1000));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [sleepMinutes, pause]);
+
+  const applyQuickProfile = useCallback((profile) => {
+    if (profile === 'studio') {
+      setProfileStrength(95);
+      setWarmthDb(1.5);
+      setReverbAmountPct(12);
+      setStereoWidthPct(105);
+      setSpeedValue(1);
+      return;
+    }
+    if (profile === 'night') {
+      setProfileStrength(110);
+      setWarmthDb(3.5);
+      setReverbAmountPct(24);
+      setStereoWidthPct(96);
+      setSpeedValue(0.92);
+      return;
+    }
+    if (profile === 'dream') {
+      setProfileStrength(120);
+      setWarmthDb(2.5);
+      setReverbAmountPct(36);
+      setStereoWidthPct(116);
+      setSpeedValue(0.88);
+    }
+  }, []);
 
   return (
     <div className="fade-in space-y-6">
@@ -281,6 +382,75 @@ export default function Player({
               {effectiveModeHint && (
                 <div className="text-[11px] text-slate-400 text-center -mt-2">{effectiveModeHint}</div>
               )}
+
+              <div className="w-full rounded-xl border border-white/10 bg-slate-900/35 p-3">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between text-xs font-semibold text-slate-200"
+                  onClick={() => setShowAdvanced(v => !v)}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Icon name="settings" className="h-3.5 w-3.5" />
+                    Advanced Player Options
+                  </span>
+                  <span className="text-[10px] text-slate-400">{showAdvanced ? 'Hide' : 'Show'}</span>
+                </button>
+
+                {showAdvanced && (
+                  <div className="mt-3 space-y-3 text-[11px] text-slate-300">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('studio')}>Studio Clean</button>
+                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('night')}>Deep Night</button>
+                      <button type="button" className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 hover:bg-violet-500/20" onClick={() => applyQuickProfile('dream')}>Dream Tape</button>
+                      <button type="button" className="rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-2 py-1.5 hover:bg-cyan-500/20" onClick={() => handleListeningModeChange(effectiveListeningMode)}>Reapply Mode</button>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>Playback Speed</span><span>{speedValue.toFixed(2)}×</span></div>
+                      <input type="range" min="0.75" max="1.25" step="0.01" value={speedValue} onChange={(e) => setSpeedValue(parseFloat(e.target.value))} className="w-full accent-violet-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>AI Profile Strength</span><span>{profileStrength}%</span></div>
+                      <input type="range" min="50" max="150" step="1" value={profileStrength} onChange={(e) => setProfileStrength(parseInt(e.target.value, 10))} className="w-full accent-violet-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>Warmth (Bass)</span><span>{warmthDb > 0 ? '+' : ''}{warmthDb.toFixed(1)} dB</span></div>
+                      <input type="range" min="-6" max="6" step="0.1" value={warmthDb} onChange={(e) => setWarmthDb(parseFloat(e.target.value))} className="w-full accent-amber-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>Reverb Space</span><span>{reverbAmountPct}%</span></div>
+                      <input type="range" min="0" max="60" step="1" value={reverbAmountPct} onChange={(e) => setReverbAmountPct(parseInt(e.target.value, 10))} className="w-full accent-cyan-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1"><span>Stereo Width</span><span>{stereoWidthPct}%</span></div>
+                      <input type="range" min="70" max="140" step="1" value={stereoWidthPct} onChange={(e) => setStereoWidthPct(parseInt(e.target.value, 10))} className="w-full accent-fuchsia-400" />
+                    </div>
+
+                    <div className="pt-1 border-t border-white/10">
+                      <div className="flex items-center justify-between mb-1"><span>Sleep Timer</span><span>{sleepMinutes > 0 ? `${sleepMinutes} min` : 'Off'}</span></div>
+                      <div className="flex gap-1.5">
+                        {[0, 15, 30, 60].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`flex-1 rounded-md border px-2 py-1 ${sleepMinutes === m ? 'border-violet-300/60 bg-violet-500/20 text-violet-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}
+                            onClick={() => setSleepMinutes(m)}
+                          >
+                            {m === 0 ? 'Off' : `${m}m`}
+                          </button>
+                        ))}
+                      </div>
+                      {sleepRemainingSec > 0 && (
+                        <div className="mt-1 text-[10px] text-slate-400">Auto-pause in {Math.ceil(sleepRemainingSec / 60)} min</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="empty-state">
