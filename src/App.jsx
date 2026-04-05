@@ -224,16 +224,16 @@ function AppContent() {
   const activeNavItem = NAV_ITEMS.find(item => item.id === activePage);
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col">
-      <main className={`flex-1 flex flex-col overflow-hidden relative mood-${userMood}`}>
-        <div className="h-12 border-b border-white/10 bg-slate-900/55 backdrop-blur-xl px-3 md:px-4 flex items-center justify-between gap-3">
+    <div className="jv-bg min-h-screen w-full text-slate-100 flex flex-col">
+      <main className={`app-content flex-1 flex flex-col overflow-hidden relative mood-${userMood}`}>
+        <div className="jv-topbar h-12 px-3 md:px-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-linear-to-br from-violet-500 to-cyan-400 grid place-items-center shadow-[0_0_14px_rgba(139,92,246,0.35)]">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 grid place-items-center shadow-[0_0_20px_rgba(155,114,248,0.5)]">
               <Icon name="headphones" className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-bold tracking-tight truncate">justVIBE</div>
-              <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">AI Music Companion</div>
+              <div className="text-sm font-extrabold tracking-tight truncate" style={{ fontFamily: 'var(--font-display)' }}>justVIBE</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-500">AI Music Companion</div>
             </div>
           </div>
 
@@ -244,7 +244,11 @@ function AppContent() {
               {activeNavItem?.label}
             </span>
             <span
-              className={`h-2.5 w-2.5 rounded-full ${backendStatus === 'ok' ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.7)]' : backendStatus === 'degraded' ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]' : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.7)]'}`}
+              className={`h-2.5 w-2.5 rounded-full transition-all ${backendStatus === 'ok'
+                ? 'bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.8)]'
+                : backendStatus === 'degraded'
+                  ? 'bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.8)]'
+                  : 'bg-rose-500 shadow-[0_0_14px_rgba(248,113,113,0.8)]'}`}
               title={backendStatus === 'ok' ? 'Backend Connected' : backendStatus === 'degraded' ? 'Backend Connected, ML Models Missing' : backendStatus === 'offline' ? 'Backend Offline' : 'Checking backend'}
             />
           </div>
@@ -286,7 +290,7 @@ function AppContent() {
         {activePage === 'player' && (
           <>
             {/* ── Spectrum Visualizer ─────────────────────────── */}
-            <div className="border-b border-white/10 bg-linear-to-r from-violet-500/10 via-fuchsia-500/5 to-cyan-500/10 p-2 md:p-3">
+            <div className="border-b border-white/[0.07] bg-gradient-to-r from-violet-500/10 via-fuchsia-500/[0.06] to-cyan-500/10 p-2 md:p-3">
               <div className="flex items-center justify-between px-1 pb-2">
                 <div className="text-[11px] uppercase tracking-widest text-slate-300">Original vs Current</div>
                 <div className="flex items-center gap-1">
@@ -306,7 +310,7 @@ function AppContent() {
                   ))}
                 </div>
               </div>
-              <div className="rounded-xl border border-cyan-400/30 overflow-hidden shadow-[0_0_14px_rgba(6,182,212,0.16)]">
+          <div className="rounded-2xl border border-violet-400/25 overflow-hidden shadow-[0_0_20px_rgba(155,114,248,0.18)]">
                 <AudioVisualizer
                   height={96}
                   showControls={false}
@@ -333,7 +337,7 @@ function AppContent() {
 
         {/* ── Player Bar ──────────────────────────────────── */}
         {!isVisualsPage && (
-          <div className={`${isPlaying ? 'playing' : ''} min-h-24 h-auto border-t border-white/10 bg-slate-900/75 backdrop-blur-xl flex flex-wrap xl:flex-nowrap items-center gap-3 px-3 md:px-5 py-2`}>
+          <div className={`jv-player-bar ${isPlaying ? 'playing' : ''} min-h-24 h-auto flex flex-wrap xl:flex-nowrap items-center gap-3 px-3 md:px-5 py-2`}>
 
           {/* Track Info */}
           <div className="flex items-center gap-3 min-w-0 w-full xl:w-64 2xl:w-72">
@@ -381,7 +385,7 @@ function AppContent() {
               ><Icon name="shuffle" className="h-4 w-4" /></button>
               <button className="h-8 w-8 rounded-full border border-white/20 text-slate-200 bg-slate-800/70 hover:border-white/35 grid place-items-center" onClick={prevTrack}><Icon name="prev" className="h-4 w-4" /></button>
               <button
-                className="h-10 w-10 rounded-full border border-violet-300/60 bg-linear-to-r from-violet-500/80 to-cyan-500/70 text-white shadow-[0_0_18px_rgba(139,92,246,0.35)] hover:brightness-110"
+                className="h-10 w-10 rounded-full border border-violet-400/50 bg-gradient-to-r from-violet-600/90 to-cyan-500/80 text-white shadow-[0_0_24px_rgba(155,114,248,0.5)] hover:shadow-[0_0_38px_rgba(155,114,248,0.7)] hover:brightness-110 transition-all"
                 onClick={handlePlayPause}
                 disabled={Boolean(currentTrack) && isLoadingTimeline && !isPlaying}
                 title={Boolean(currentTrack) && isLoadingTimeline && !isPlaying ? 'Analyzing track before playback...' : ''}
@@ -526,7 +530,7 @@ function AppContent() {
         )}
       </main>
 
-      <nav className="h-16 border-t border-white/10 bg-slate-900/90 backdrop-blur-xl">
+      <nav className="jv-nav h-16">
         <div
           className="h-full grid gap-1 px-2 md:px-4"
           style={{ gridTemplateColumns: `repeat(${NAV_ITEMS.length}, minmax(0, 1fr))` }}
@@ -535,13 +539,18 @@ function AppContent() {
             <button
               key={item.id}
               type="button"
-              className={`relative h-full rounded-xl flex flex-col items-center justify-center gap-1 border transition-all duration-300 ${activePage === item.id ? 'border-violet-400/40 bg-violet-500/15 text-white shadow-[0_0_18px_rgba(139,92,246,0.2)]' : 'border-transparent text-slate-300 hover:bg-white/5 hover:border-white/10 hover:text-slate-100'}`}
+              className={`relative h-full rounded-2xl flex flex-col items-center justify-center gap-1.5 border transition-all duration-300 ${activePage === item.id
+                ? 'border-violet-400/35 bg-violet-500/12 text-white shadow-[0_0_22px_rgba(155,114,248,0.22),inset_0_1px_0_rgba(255,255,255,0.07)]'
+                : 'border-transparent text-slate-400 hover:bg-white/[0.04] hover:border-white/10 hover:text-slate-200'}`}
               onClick={() => setActivePage(item.id)}
             >
-              <Icon name={item.icon} className="h-4.5 w-4.5" />
-              <span className="text-[11px] font-medium leading-none">{item.label}</span>
+              {activePage === item.id && (
+                <span className="absolute top-1.5 w-4 h-0.5 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400 shadow-[0_0_8px_rgba(155,114,248,0.8)]" />
+              )}
+              <Icon name={item.icon} className="h-[18px] w-[18px]" />
+              <span className={`text-[10px] font-semibold leading-none tracking-wide ${activePage === item.id ? 'text-violet-200' : ''}`}>{item.label}</span>
               {item.id === 'player' && playlist.length > 0 && (
-                <span className="absolute -mt-8.5 ml-8.5 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/80 text-white">{playlist.length}</span>
+                <span className="absolute -mt-8.5 ml-8.5 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/80 text-white shadow-[0_0_8px_rgba(155,114,248,0.5)]">{playlist.length}</span>
               )}
             </button>
           ))}

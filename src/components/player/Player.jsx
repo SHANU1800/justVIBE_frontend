@@ -92,13 +92,20 @@ export default function Player({
     <div className="fade-in space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-          <span className="bg-linear-to-r from-violet-200 via-fuchsia-200 to-cyan-200 bg-clip-text text-transparent inline-flex items-center gap-2">
-            <Icon name="music" className="h-8 w-8" />
+          <span className="inline-flex items-center gap-2" style={{
+            fontFamily: 'var(--font-display)',
+            background: 'var(--gradient-neon)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            filter: 'drop-shadow(0 0 16px rgba(155,114,248,0.35))',
+          }}>
+            <Icon name="music" className="h-8 w-8" style={{ filter: 'none', WebkitTextFillColor: 'initial' }} />
             Player
           </span>
         </h1>
-        <p className="text-slate-400 text-sm">Import your music and let justVIBE enhance your listening experience</p>
-        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 backdrop-blur-xl">
+        <p className="text-slate-500 text-sm">Import your music and let justVIBE enhance your listening experience</p>
+        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-[rgba(8,10,24,0.7)] px-3 py-2 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">Mood effect</span>
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
             {[
@@ -124,7 +131,7 @@ export default function Player({
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Playlist Panel */}
-        <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-xl p-5 shadow-[0_20px_80px_rgba(2,6,23,0.45)] min-h-0">
+        <div className="xl:col-span-8 rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Icon name="clipboard" className="h-5 w-5" />
@@ -133,7 +140,7 @@ export default function Player({
                 <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-violet-500/70 text-white">{playlist.length} tracks</span>
               )}
             </h3>
-            <button className="rounded-xl bg-linear-to-r from-violet-500 to-cyan-500 px-3 py-1.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.35)] hover:opacity-90" onClick={() => fileRef.current?.click()}>
+            <button className="rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-3 py-1.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(155,114,248,0.4)] hover:shadow-[0_0_36px_rgba(155,114,248,0.6)] hover:brightness-110 transition-all" onClick={() => fileRef.current?.click()}>
               + Add Files
             </button>
             <input
@@ -219,7 +226,7 @@ export default function Player({
         </div>
 
         {/* Now Playing Panel */}
-        <div className="xl:col-span-4 rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-xl p-4 shadow-[0_20px_80px_rgba(2,6,23,0.45)] min-h-0">
+        <div className="xl:col-span-4 rounded-2xl border border-white/[0.07] border-t-white/[0.11] bg-[rgba(8,10,24,0.8)] backdrop-blur-2xl p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset,0_20px_80px_rgba(0,0,0,0.55)] min-h-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Icon name="headphones" className="h-5 w-5" />
@@ -238,7 +245,7 @@ export default function Player({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: isPlaying ? 'var(--shadow-glow)' : 'var(--shadow-sm)',
+                  boxShadow: isPlaying ? '0 0 40px rgba(155,114,248,0.55), 0 0 80px rgba(155,114,248,0.2)' : '0 4px 20px rgba(0,0,0,0.5)',
                 transition: 'all 0.5s ease',
                 animation: isPlaying ? 'cover-pulse 3s ease-in-out infinite' : 'none',
               }}>
