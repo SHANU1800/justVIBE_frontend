@@ -15,6 +15,10 @@ const apiClient = axios.create({
   timeout: TIMEOUT_MS,
 });
 
+const MODE_RECOMMEND_TTL_MS = 60_000;
+const modeRecommendCache = new Map();
+const modeRecommendInflight = new Map();
+
 class ApiError extends Error {
   constructor(message, status, data) {
     super(message);
@@ -268,6 +272,23 @@ export async function analyzeSegmentByPath(filePath, timeOffset) {
 // ── Listening Mode Recommendation ─────────────────────────────
 
 export async function getModeRecommendationFromFile(file, mode, options = null) {
+  const fileKey = file
+    ? `${file.name || 'file'}|${file.size || 0}|${file.lastModified || 0}`
+    : 'no-file';
+  const optionsKey = options ? JSON.stringify(options) : '{}';
+  const cacheKey = `${fileKey}|${mode || 'normal'}|${optionsKey}`;
+
+  const now = Date.now();
+  const cached = modeRecommendCache.get(cacheKey);
+  if (cached && now - cached.ts <= MODE_RECOMMEND_TTL_MS) {
+    return cached.value;
+  }
+
+  const pending = modeRecommendInflight.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('mode', mode);
@@ -277,11 +298,19 @@ export async function getModeRecommendationFromFile(file, mode, options = null) 
       formData.append(key, String(value));
     });
   }
-  return request('/mode/recommend', {
+  const reqPromise = request('/mode/recommend', {
     method: 'POST',
     body: formData,
     timeout: 45000,
+  }).then((result) => {
+    modeRecommendCache.set(cacheKey, { ts: Date.now(), value: result });
+    return result;
+  }).finally(() => {
+    modeRecommendInflight.delete(cacheKey);
   });
+
+  modeRecommendInflight.set(cacheKey, reqPromise);
+  return reqPromise;
 }
 
 // ── Session & Preferences ─────────────────────────────────────

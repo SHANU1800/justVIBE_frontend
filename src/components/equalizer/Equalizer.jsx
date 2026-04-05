@@ -72,8 +72,8 @@ function deriveAutoProfile({ eq, genre, confidence, intensity }) {
   const stereoWidth = clampValue(Math.round(100 + (high - low) * 5 + genreBias.width + conf * 4), 65, 160);
   const stereoBalance = clampValue(Math.round((safeEq[6] - safeEq[4]) * 3 * (1 - conf * 0.5)), -22, 22);
 
-  const reverbAmount = clampValue(Math.round(10 + Math.abs(mid) * 3.5 + Math.max(0, high) * 2 + genreBias.reverb), 6, 45);
-  const reverbDecay = clampValue(parseFloat((1.8 + Math.abs(mid) * 0.12 + conf * 0.35).toFixed(1)), 1.1, 5.2);
+  const reverbAmount = clampValue(Math.round(8 + Math.abs(mid) * 2.2 + Math.max(0, high) * 1.2 + genreBias.reverb * 0.5), 4, 28);
+  const reverbDecay = clampValue(parseFloat((1.5 + Math.abs(mid) * 0.08 + conf * 0.22).toFixed(1)), 1.0, 3.8);
 
   const normTarget = clampValue(Math.round(genreBias.norm + Math.max(0, low) * 0.35 - conf * 1.1), -20, -10);
 
@@ -310,8 +310,8 @@ export default function Equalizer({
     setStereoWidth(Math.round(width));
     setStereoBalance(0);
 
-    const rvbAmount = clampValue(10 + Math.abs(mid) * 4 + Math.max(0, high) * 2, 8, 38);
-    const rvbDecay = clampValue(2.1 + Math.abs(mid) * 0.15, 1.2, 4.8);
+    const rvbAmount = clampValue(8 + Math.abs(mid) * 2.4 + Math.max(0, high) * 1.3, 5, 26);
+    const rvbDecay = clampValue(1.8 + Math.abs(mid) * 0.09, 1.0, 3.6);
     setReverbAmount(Math.round(rvbAmount));
     setReverbDecay(parseFloat(rvbDecay.toFixed(1)));
 

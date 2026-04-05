@@ -95,6 +95,8 @@ export default function Player({
   }, [handleFiles]);
 
   useEffect(() => {
+    // In controlled mode, parent App owns recommendation requests.
+    if (onListeningModeChange) return;
     if (!currentTrack?.file || effectiveListeningMode === 'Normal') return;
 
     applyListeningMode(effectiveListeningMode);
@@ -106,7 +108,7 @@ export default function Player({
         }
       })
       .catch(() => {});
-  }, [currentTrack, effectiveListeningMode, applyListeningMode, currentModeOptions]);
+  }, [currentTrack, effectiveListeningMode, applyListeningMode, currentModeOptions, onListeningModeChange]);
 
   useEffect(() => {
     setPlaybackRate?.(speedValue);

@@ -57,15 +57,30 @@ function AppContent() {
   });
   const [topGraphMode, setTopGraphMode] = useState('frequency');
   const lastBackendCheckRef = useRef(0);
+  const lastModeRequestKeyRef = useRef('');
 
-  const { backendStatus, backendIssue, modelDiagnostics, checkBackend } = useAnalysis();
+  const buildModeRequestKey = useCallback((track, mode, options) => {
+    if (!track) return '';
+    const sig = [
+      track.id || track.name || 'unknown',
+      track.file?.name || '',
+      track.file?.size || 0,
+      track.file?.lastModified || 0,
+      mode || 'Normal',
+      JSON.stringify(options || {}),
+    ];
+    return sig.join('|');
+  }, []);
+
+  const { backendStatus, backendIssue, modelDiagnostics, modelStatus, checkBackend } = useAnalysis();
   const {
     currentTrack, isPlaying, currentTime, duration, volume, isMuted,
     shuffle, repeat, togglePlay, nextTrack, prevTrack, seekTo, dispatch,
     playlist, applyMoodPreset, applyListeningMode, setPlaybackRate,
   } = usePlayer();
   const {
-    currentGenre, isLoadingTimeline, genreTimeline, transitionDuration, setTransitionDuration,
+    currentGenre, currentConfidence, isLoadingTimeline, genreTimeline,
+    transitionDuration, setTransitionDuration,
     autoEQEnabled, setAutoEQEnabled,
     preprocessCurrentTrack, backendError, clearBackendError,
   } = useRealtimeGenre();
@@ -90,6 +105,8 @@ function AppContent() {
 
     setModeHint('Applying model profile...');
     try {
+      const requestKey = buildModeRequestKey(currentTrack, mode, nextOptions);
+      lastModeRequestKeyRef.current = requestKey;
       const result = await getModeRecommendationFromFile(currentTrack.file, mode, nextOptions);
       if (result?.status === 'ok') {
         applyListeningMode(mode, result);
@@ -101,10 +118,16 @@ function AppContent() {
       const reason = error?.message ? ` — ${error.message}` : '';
       setModeHint(`${mode} active (fallback${reason})`);
     }
-  }, [applyListeningMode, currentTrack, preprocessCurrentTrack, modeRequestOptions]);
+  }, [applyListeningMode, currentTrack, preprocessCurrentTrack, modeRequestOptions, buildModeRequestKey]);
 
   useEffect(() => {
     if (!currentTrack?.file || listeningMode === 'Normal') return;
+
+    const requestKey = buildModeRequestKey(currentTrack, listeningMode, modeRequestOptions);
+    if (lastModeRequestKeyRef.current === requestKey) {
+      return;
+    }
+    lastModeRequestKeyRef.current = requestKey;
 
     applyListeningMode(listeningMode);
     if (listeningMode === 'Enhanced') {
@@ -121,7 +144,7 @@ function AppContent() {
         const reason = error?.message ? ` — ${error.message}` : '';
         setModeHint(`${listeningMode} active (fallback${reason})`);
       });
-  }, [currentTrack, listeningMode, applyListeningMode, preprocessCurrentTrack, modeRequestOptions]);
+  }, [currentTrack, listeningMode, applyListeningMode, preprocessCurrentTrack, modeRequestOptions, buildModeRequestKey]);
 
   // A/B loop monitoring
   const loopRef = useRef({ A: null, B: null });
@@ -297,6 +320,96 @@ function AppContent() {
               >
                 Dismiss
               </button>
+            )}
+          </div>
+        )}
+
+        {/* ── ML Activity Strip ────────────────────────────────── */}
+        {activePage === 'player' && backendStatus !== 'unknown' && (
+          <div className="px-4 md:px-5 h-8 flex items-center gap-2 shrink-0 border-b border-white/[0.04] overflow-x-auto scrollbar-none">
+            {/* Backend status */}
+            {backendStatus === 'ok' ? (
+              <span className="flex items-center gap-1 text-[10px] text-emerald-400/70 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)]" />
+                ML Online
+              </span>
+            ) : backendStatus === 'degraded' ? (
+              <span className="flex items-center gap-1 text-[10px] text-amber-400/70 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                ML Degraded
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] text-rose-400/70 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                ML Offline
+              </span>
+            )}
+
+            {/* Model loaded count */}
+            {modelStatus && backendStatus !== 'offline' && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="text-[10px] text-slate-500 shrink-0">
+                  {Object.values(modelStatus).filter(m => m.loaded).length}
+                  <span className="text-slate-700">/{Object.values(modelStatus).length}</span> models
+                </span>
+              </>
+            )}
+
+            {/* Genre timeline analysis */}
+            {currentTrack && isLoadingTimeline && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="flex items-center gap-1 text-[10px] text-violet-300 shrink-0">
+                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Analyzing genre timeline…
+                </span>
+              </>
+            )}
+
+            {/* Timeline ready */}
+            {currentTrack && !isLoadingTimeline && genreTimeline.length > 0 && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="text-[10px] text-emerald-400/60 shrink-0">
+                  {genreTimeline.length} segs ready
+                </span>
+              </>
+            )}
+
+            {/* Current genre with confidence */}
+            {currentGenre && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="flex items-center gap-1 text-[10px] shrink-0">
+                  <span className="text-slate-400">Genre:</span>
+                  <span className="text-cyan-300 capitalize font-medium">{currentGenre}</span>
+                  {currentConfidence > 0 && (
+                    <span className="text-slate-500">{Math.round(currentConfidence * 100)}%</span>
+                  )}
+                </span>
+              </>
+            )}
+
+            {/* Mode hint / mode loading */}
+            {modeHint && listeningMode !== 'Normal' && (
+              <>
+                <span className="text-slate-700">·</span>
+                {modeHint.startsWith('Applying') ? (
+                  <span className="flex items-center gap-1 text-[10px] text-amber-300/80 shrink-0">
+                    <svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    {modeHint}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-violet-300/80 shrink-0">{modeHint}</span>
+                )}
+              </>
             )}
           </div>
         )}

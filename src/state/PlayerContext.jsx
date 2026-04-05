@@ -221,6 +221,7 @@ export function PlayerProvider({ children }) {
     normCompressor: null,
     normMakeupGain: null,
     lastReverbDecay: null,
+    lastReverbUpdateTs: 0,
   });
   const currentMoodRef = useRef('chill');
   const modeAdjustRef = useRef({ ...DEFAULT_MODE_ADJUST });
@@ -357,13 +358,14 @@ export function PlayerProvider({ children }) {
         fx.reverbDryGain.gain.value = 1;
         fx.reverbWetGain.gain.value = 0;
         fx.lastReverbDecay = null;
+        fx.lastReverbUpdateTs = 0;
         fx.reverbConvolver.buffer = buildImpulseResponse(fx.ctx, 2.5);
 
         fx.normCompressor.threshold.value = -6;
-        fx.normCompressor.knee.value = 0;
+        fx.normCompressor.knee.value = 16;
         fx.normCompressor.ratio.value = 1;
-        fx.normCompressor.attack.value = 0.003;
-        fx.normCompressor.release.value = 0.1;
+        fx.normCompressor.attack.value = 0.012;
+        fx.normCompressor.release.value = 0.25;
         fx.normMakeupGain.gain.value = 1;
       } catch {
         // Another part of app may already own the media source.
@@ -387,10 +389,11 @@ export function PlayerProvider({ children }) {
     if (!fx.lowShelf || !fx.peaking || !fx.highShelf || !fx.wetGain || !fx.dryGain) return;
 
     const now = fx.ctx.currentTime;
-    const ramp = 0.2;
+    const ramp = 0.35;
 
     const rawDry = clamp(preset.dry + modeAdjust.dryBias, 0.0, 1.2);
-    const rawWet = clamp(preset.wet + modeAdjust.wetBias, 0.0, 1.2);
+    // Keep wet channel conservative to reduce shimmer/hiss artifacts.
+    const rawWet = clamp(preset.wet + modeAdjust.wetBias, 0.0, 0.72);
     const totalMix = rawDry + rawWet;
     const mixScale = totalMix > 1.0 ? (1.0 / totalMix) : 1.0;
     const targetDry = rawDry * mixScale;
@@ -409,74 +412,50 @@ export function PlayerProvider({ children }) {
     const targetMidFreq = clamp(preset.peaking.freq * (modeTone.midFreqMul ?? 1), 250, 6000);
     const targetHighFreq = clamp(preset.highShelf.freq * (modeTone.highFreqMul ?? 1), 1800, 12000);
     const targetQ = clamp(preset.peaking.q * (modeTone.peakQMul ?? 1), 0.35, 2.0);
-    const targetLowpass = clamp(modeTone.lowpassHz ?? 22000, 1200, 22000);
+    // Cap top-end to reduce high-frequency hash on bright tracks.
+    const targetLowpass = clamp(modeTone.lowpassHz ?? 16500, 1200, 16500);
     const minHighpass = subBassFilterRef.current ? 30 : 20;
     const targetHighpass = clamp(Math.max(modeTone.highpassHz ?? 20, minHighpass), 20, 350);
     const targetDrive = clamp(modeTexture.drive ?? 0, 0, 1);
-    const targetHiss = clamp(modeTexture.hiss ?? 0, 0, 0.004);
-    const targetCrackle = clamp(modeTexture.crackle ?? 0, 0, 0.0025);
+    const targetHiss = clamp(modeTexture.hiss ?? 0, 0, 0.0012);
+    const targetCrackle = clamp(modeTexture.crackle ?? 0, 0, 0.0009);
     const targetWow = clamp(modeTexture.wowDepth ?? 0, 0, 620);
     const targetFlutter = clamp(modeTexture.flutterDepth ?? 0, 0, 210);
 
-    fx.dryGain.gain.cancelScheduledValues(now);
-    fx.wetGain.gain.cancelScheduledValues(now);
-    fx.lowShelf.frequency.cancelScheduledValues(now);
-    fx.lowShelf.gain.cancelScheduledValues(now);
-    fx.peaking.frequency.cancelScheduledValues(now);
-    fx.peaking.Q.cancelScheduledValues(now);
-    fx.peaking.gain.cancelScheduledValues(now);
-    fx.highShelf.frequency.cancelScheduledValues(now);
-    fx.highShelf.gain.cancelScheduledValues(now);
-    if (fx.modeLowpass) fx.modeLowpass.frequency.cancelScheduledValues(now);
-    if (fx.modeHighpass) fx.modeHighpass.frequency.cancelScheduledValues(now);
-    if (fx.hissGain) fx.hissGain.gain.cancelScheduledValues(now);
-    if (fx.crackleGain) fx.crackleGain.gain.cancelScheduledValues(now);
-    if (fx.wowDepth) fx.wowDepth.gain.cancelScheduledValues(now);
-    if (fx.flutterDepth) fx.flutterDepth.gain.cancelScheduledValues(now);
-    if (fx.driveGain) fx.driveGain.gain.cancelScheduledValues(now);
-    if (fx.postDriveGain) fx.postDriveGain.gain.cancelScheduledValues(now);
+    // Cancel all pending events and snapshot the current value before scheduling new ramps.
+    // Calling setValueAtTime after cancelScheduledValues anchors the starting point so the
+    // ramp interpolates from the live value instead of an undefined state, preventing clicks.
+    const snapAndRamp = (param, target) => {
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(target, now + ramp);
+    };
 
-    fx.dryGain.gain.linearRampToValueAtTime(safeDry, now + ramp);
-    fx.wetGain.gain.linearRampToValueAtTime(safeWet, now + ramp);
+    snapAndRamp(fx.dryGain.gain, safeDry);
+    snapAndRamp(fx.wetGain.gain, safeWet);
 
-    fx.lowShelf.frequency.linearRampToValueAtTime(targetLowFreq, now + ramp);
-    fx.lowShelf.gain.linearRampToValueAtTime(targetLow, now + ramp);
+    snapAndRamp(fx.lowShelf.frequency, targetLowFreq);
+    snapAndRamp(fx.lowShelf.gain, targetLow);
 
-    fx.peaking.frequency.linearRampToValueAtTime(targetMidFreq, now + ramp);
-    fx.peaking.Q.linearRampToValueAtTime(targetQ, now + ramp);
-    fx.peaking.gain.linearRampToValueAtTime(targetMid, now + ramp);
+    snapAndRamp(fx.peaking.frequency, targetMidFreq);
+    snapAndRamp(fx.peaking.Q, targetQ);
+    snapAndRamp(fx.peaking.gain, targetMid);
 
-    fx.highShelf.frequency.linearRampToValueAtTime(targetHighFreq, now + ramp);
-    fx.highShelf.gain.linearRampToValueAtTime(targetHigh, now + ramp);
+    snapAndRamp(fx.highShelf.frequency, targetHighFreq);
+    snapAndRamp(fx.highShelf.gain, targetHigh);
 
-    if (fx.modeLowpass) {
-      fx.modeLowpass.frequency.linearRampToValueAtTime(targetLowpass, now + ramp);
-    }
-    if (fx.modeHighpass) {
-      fx.modeHighpass.frequency.linearRampToValueAtTime(targetHighpass, now + ramp);
-    }
+    if (fx.modeLowpass) snapAndRamp(fx.modeLowpass.frequency, targetLowpass);
+    if (fx.modeHighpass) snapAndRamp(fx.modeHighpass.frequency, targetHighpass);
 
     if (fx.modeDrive) {
       fx.modeDrive.curve = makeDriveCurve(targetDrive);
     }
-    if (fx.driveGain) {
-      fx.driveGain.gain.linearRampToValueAtTime(1 + targetDrive * 1.4, now + ramp);
-    }
-    if (fx.postDriveGain) {
-      fx.postDriveGain.gain.linearRampToValueAtTime(1 / (1 + targetDrive * 1.2), now + ramp);
-    }
-    if (fx.hissGain) {
-      fx.hissGain.gain.linearRampToValueAtTime(targetHiss, now + ramp);
-    }
-    if (fx.crackleGain) {
-      fx.crackleGain.gain.linearRampToValueAtTime(targetCrackle, now + ramp);
-    }
-    if (fx.wowDepth) {
-      fx.wowDepth.gain.linearRampToValueAtTime(targetWow, now + ramp);
-    }
-    if (fx.flutterDepth) {
-      fx.flutterDepth.gain.linearRampToValueAtTime(targetFlutter, now + ramp);
-    }
+    if (fx.driveGain) snapAndRamp(fx.driveGain.gain, 1 + targetDrive * 1.4);
+    if (fx.postDriveGain) snapAndRamp(fx.postDriveGain.gain, 1 / (1 + targetDrive * 1.2));
+    if (fx.hissGain) snapAndRamp(fx.hissGain.gain, targetHiss);
+    if (fx.crackleGain) snapAndRamp(fx.crackleGain.gain, targetCrackle);
+    if (fx.wowDepth) snapAndRamp(fx.wowDepth.gain, targetWow);
+    if (fx.flutterDepth) snapAndRamp(fx.flutterDepth.gain, targetFlutter);
   }, [ensureFxGraph]);
 
   const getSharedAnalyserNode = useCallback(() => {
@@ -511,8 +490,8 @@ export function PlayerProvider({ children }) {
       nextTone = { ...DEFAULT_MODE_TONE, lowFreqMul: 0.96, midFreqMul: 0.93, highFreqMul: 0.84, peakQMul: 0.92, lowpassHz: 6500, highpassHz: 55 };
       nextTexture = { ...DEFAULT_MODE_TEXTURE };
     } else if (normalized === 'dj') {
-      nextAdjust = { low: 8.2, mid: -1.8, high: 7.2, wetBias: 0.28, dryBias: -0.15 };
-      nextTone = { ...DEFAULT_MODE_TONE, lowFreqMul: 1.18, midFreqMul: 1.02, highFreqMul: 1.16, peakQMul: 1.15, lowpassHz: 17000, highpassHz: 35 };
+      nextAdjust = { low: 4.8, mid: -1.0, high: 3.5, wetBias: 0.14, dryBias: -0.06 };
+      nextTone = { ...DEFAULT_MODE_TONE, lowFreqMul: 1.1, midFreqMul: 1.01, highFreqMul: 1.08, peakQMul: 1.08, lowpassHz: 17000, highpassHz: 35 };
       nextTexture = { ...DEFAULT_MODE_TEXTURE };
     }
 
@@ -552,20 +531,24 @@ export function PlayerProvider({ children }) {
     if (!fx) return;
 
     const now = fx.ctx.currentTime;
-    const ramp = 0.12;
+    const ramp = 0.22;
 
     const bass = bassSettingsRef.current || DEFAULT_BASS_SETTINGS;
     const stereo = stereoSettingsRef.current || DEFAULT_STEREO_SETTINGS;
     const reverb = reverbSettingsRef.current || DEFAULT_REVERB_SETTINGS;
     const norm = normSettingsRef.current || DEFAULT_NORM_SETTINGS;
 
+    const snapAndRampE = (param, target) => {
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(target, now + ramp);
+    };
+
     if (fx.bassShelf) {
       const bassFreq = clamp(Number(bass.freq) || 100, 40, 250);
       const bassBoost = clamp(Number(bass.boost) || 0, -12, 12);
-      fx.bassShelf.frequency.cancelScheduledValues(now);
-      fx.bassShelf.gain.cancelScheduledValues(now);
-      fx.bassShelf.frequency.linearRampToValueAtTime(bassFreq, now + ramp);
-      fx.bassShelf.gain.linearRampToValueAtTime(bassBoost, now + ramp);
+      snapAndRampE(fx.bassShelf.frequency, bassFreq);
+      snapAndRampE(fx.bassShelf.gain, bassBoost);
     }
 
     if (fx.stereoLDirectGain && fx.stereoRCrossToLGain && fx.stereoRDirectGain && fx.stereoLCrossToRGain && fx.stereoPanner) {
@@ -574,30 +557,25 @@ export function PlayerProvider({ children }) {
       const direct = 0.5 * (1 + width);
       const cross = 0.5 * (1 - width);
 
-      fx.stereoLDirectGain.gain.cancelScheduledValues(now);
-      fx.stereoRCrossToLGain.gain.cancelScheduledValues(now);
-      fx.stereoRDirectGain.gain.cancelScheduledValues(now);
-      fx.stereoLCrossToRGain.gain.cancelScheduledValues(now);
-      fx.stereoPanner.pan.cancelScheduledValues(now);
-
-      fx.stereoLDirectGain.gain.linearRampToValueAtTime(direct, now + ramp);
-      fx.stereoRCrossToLGain.gain.linearRampToValueAtTime(cross, now + ramp);
-      fx.stereoRDirectGain.gain.linearRampToValueAtTime(direct, now + ramp);
-      fx.stereoLCrossToRGain.gain.linearRampToValueAtTime(cross, now + ramp);
-      fx.stereoPanner.pan.linearRampToValueAtTime(pan, now + ramp);
+      snapAndRampE(fx.stereoLDirectGain.gain, direct);
+      snapAndRampE(fx.stereoRCrossToLGain.gain, cross);
+      snapAndRampE(fx.stereoRDirectGain.gain, direct);
+      snapAndRampE(fx.stereoLCrossToRGain.gain, cross);
+      snapAndRampE(fx.stereoPanner.pan, pan);
     }
 
     if (fx.reverbDryGain && fx.reverbWetGain && fx.reverbConvolver) {
       const amount = clamp((Number(reverb.amount) || 0) / 100, 0, 1);
       const decay = clamp(Number(reverb.decay) || 2.5, 0.1, 10);
 
-      fx.reverbDryGain.gain.cancelScheduledValues(now);
-      fx.reverbWetGain.gain.cancelScheduledValues(now);
-      fx.reverbDryGain.gain.linearRampToValueAtTime(1 - amount * 0.85, now + ramp);
-      fx.reverbWetGain.gain.linearRampToValueAtTime(amount * 0.6, now + ramp);
+      snapAndRampE(fx.reverbDryGain.gain, 1 - amount * 0.68);
+      snapAndRampE(fx.reverbWetGain.gain, amount * 0.35);
 
-      if (fx.lastReverbDecay == null || Math.abs(decay - fx.lastReverbDecay) > 0.12) {
+      const elapsedMs = Date.now() - (fx.lastReverbUpdateTs || 0);
+      // Avoid frequent random IR swaps while playing; they can sound like crackle.
+      if (fx.lastReverbDecay == null || (Math.abs(decay - fx.lastReverbDecay) > 0.35 && elapsedMs > 1500)) {
         fx.lastReverbDecay = decay;
+        fx.lastReverbUpdateTs = Date.now();
         fx.reverbConvolver.buffer = buildImpulseResponse(fx.ctx, decay);
       }
     }
@@ -609,17 +587,22 @@ export function PlayerProvider({ children }) {
       const targetRatio = normEnabled ? 3.2 : 1;
       const makeup = normEnabled ? clamp(Math.pow(10, ((-target - 10) / 20)), 1, 1.9) : 1;
 
+      // Use setTargetAtTime for compressor params — they respond more cleanly
+      // to exponential approach than to linear ramps, which can cause pops.
+      const tc = ramp / 3;
       fx.normCompressor.threshold.cancelScheduledValues(now);
+      fx.normCompressor.threshold.setValueAtTime(fx.normCompressor.threshold.value, now);
+      fx.normCompressor.threshold.setTargetAtTime(targetThreshold, now, tc);
+
       fx.normCompressor.ratio.cancelScheduledValues(now);
-      fx.normMakeupGain.gain.cancelScheduledValues(now);
+      fx.normCompressor.ratio.setValueAtTime(fx.normCompressor.ratio.value, now);
+      fx.normCompressor.ratio.setTargetAtTime(targetRatio, now, tc);
 
-      fx.normCompressor.threshold.linearRampToValueAtTime(targetThreshold, now + ramp);
-      fx.normCompressor.ratio.linearRampToValueAtTime(targetRatio, now + ramp);
-      fx.normMakeupGain.gain.linearRampToValueAtTime(makeup, now + ramp);
+      snapAndRampE(fx.normMakeupGain.gain, makeup);
 
-      fx.normCompressor.knee.value = normEnabled ? 14 : 0;
-      fx.normCompressor.attack.value = 0.004;
-      fx.normCompressor.release.value = normEnabled ? 0.2 : 0.1;
+      fx.normCompressor.knee.value = 16;
+      fx.normCompressor.attack.value = 0.012;
+      fx.normCompressor.release.value = normEnabled ? 0.25 : 0.2;
     }
   }, [ensureFxGraph]);
 
