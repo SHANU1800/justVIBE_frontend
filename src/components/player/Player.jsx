@@ -4,6 +4,12 @@ import { useRealtimeGenre } from '../../state/RealtimeGenreContext';
 import { getModeRecommendationFromFile } from '../../services/mlApi';
 import Icon from '../common/Icons';
 
+function clampPlaybackSpeed(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(2, Math.max(0.5, n));
+}
+
 export default function Player({
   userMood = 'chill',
   onMoodChange = () => {},
@@ -25,7 +31,9 @@ export default function Player({
   const [listeningMode, setListeningMode] = useState('Normal');
   const [modeHint, setModeHint] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(true);
-  const [speedValue, setSpeedValue] = useState(Number(modeRequestOptions?.target_speed ?? 1));
+  const [speedValue, setSpeedValue] = useState(() =>
+    clampPlaybackSpeed(modeRequestOptions?.target_speed ?? 1),
+  );
   const [intensityPct, setIntensityPct] = useState(100);
   const [profileStrength, setProfileStrength] = useState(Math.round((Number(modeRequestOptions?.profile_strength ?? 1)) * 100));
   const [warmthDb, setWarmthDb] = useState(Number(modeRequestOptions?.bass_boost_db ?? 0));
@@ -396,21 +404,19 @@ export default function Player({
 
               {/* ── Always-visible quick controls ── */}
               <div className="w-full space-y-2.5 rounded-xl border border-white/[0.08] bg-slate-900/40 p-3 text-[11px] text-slate-300">
-                {/* Speed */}
+                {/* Speed — full range 0.5×–2× (matches audio playbackRate clamp) */}
                 <div className="flex items-center gap-2">
                   <span className="w-14 shrink-0 text-slate-400 font-medium">Speed</span>
-                  <div className="flex flex-1 gap-1">
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`flex-1 rounded-md border py-1 text-[10px] font-semibold transition-all ${Math.abs(speedValue - s) < 0.01 ? 'border-violet-400/60 bg-violet-500/25 text-violet-100 shadow-[0_0_8px_rgba(139,92,246,0.3)]' : 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]'}`}
-                        onClick={() => setSpeedValue(s)}
-                      >
-                        {s}×
-                      </button>
-                    ))}
-                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.01"
+                    value={speedValue}
+                    onChange={(e) => setSpeedValue(clampPlaybackSpeed(parseFloat(e.target.value)))}
+                    className="flex-1 accent-violet-400 min-w-0"
+                  />
+                  <span className="w-11 shrink-0 text-right text-slate-300 tabular-nums">{speedValue.toFixed(2)}×</span>
                 </div>
                 {/* Intensity — scales EQ strength 0→150% */}
                 <div className="flex items-center gap-2">
